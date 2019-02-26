@@ -46,7 +46,7 @@ class SED:
         self.M = M # black hole mass in solar masses
         self.mdot = mdot # mdot = Mdot / Mdot_Eddington
         self.astar = astar # dimensionless black hole spin
-        self.astar_sign = sign # +1 for prograde rotation, -1 for retrograde
+        self.astar_sign = astar_sign # +1 for prograde rotation, -1 for retrograde
 
         # useful quantities #
         self.Rg = const.G * M * const.Ms / const.c ** 2 # gravitational radius
@@ -61,8 +61,8 @@ class SED:
         self.corona_height = min(100., self.corona_radius)
         
         # set reprocessing to false to compute corona luminosity
-        self.reprocessing = False
-        self.corona_luminosity_norepr = self.corona_luminosity
+        #self.reprocessing = False
+        #self.corona_luminosity_norepr = self.corona_luminosity
         self.reprocessing = reprocessing # set reprocessing to the desired value
         
         try:
@@ -192,13 +192,14 @@ class SED:
 
         R = radius * self.Rg
         M = self.M * const.Ms
-        Lhot = self.corona_luminosity_norepr
+        Lhot = self.corona_luminosity
         H = self.corona_radius * self.Rg
         a = self.reflection_albedo
         aux = 3. * const.G * M / ( 8 * np.pi * R**3.)
         aux *= 2 * Lhot / (const.c**2)
         aux *= H / (6 * self.Rg) * (1.-a)
         aux *= (1. + (H/R)**2)**(-3./2.)
+        #print(aux)
         return aux
     
     def disk_temperature4(self,r):
@@ -397,8 +398,10 @@ class SED:
         L_nu = k nu ^(-alpha) = k nu^( 1 - gamma ), where alpha = gamma - 1
         Computed using equation 14 of Beloborodov (1999).
         """     
-
+        reproc = self.reprocessing
+        self.reprocessing = False
         gamma_cor = 7./3. * ( self.corona_dissipated_luminosity / self.corona_seed_luminosity )**(-0.1)
+        self.reprocessing = reproc
         return gamma_cor
 
     def corona_flux(self, distance):

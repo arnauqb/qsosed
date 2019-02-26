@@ -54,7 +54,7 @@ a = 0
 sed_test = SED(M=M, mdot = mdot, astar = 0)
 
 # choose a distance in cm.
-distance = 10 * u.Mpc
+distance = 100 * u.Mpc
 distance_cm = distance.to(u.cm).value
 
 # compute total flux
@@ -64,5 +64,17 @@ total_flux = sed_test.total_flux( distance = distance_cm)
 
 fig, ax = plt.subplots(9,6)
 sed_test.plot_total_flux(distance, ax=ax)
+```
 
 ![Total_flux_plot](total_flux.png "Total spectral flux")
+
+## Comparison with Xspec
+
+We can test that our Python implementation gives the same results as the Xspec code.
+
+```
+M = 1e8
+mdot = 0.5
+```
+![xspec_comparison1](xspec_comparison_1.png "Total spectral flux")
+![xspec_comparison2](xspec_comparison_2.png "Total spectral flux")
