@@ -1,13 +1,18 @@
 """
 This module computes the AGN Spectral Energy Density in the UV/X-Ray energy range, following Kubota & Done (2018). This is equivalent to AGNSED in XSPEC.
+Written by Arnau Quera-Bofarull in Durham, UK.
 """
 import numpy as np
-import agnsed.constants as const
+import pyagn.constants as const
 import matplotlib.pyplot as plt
+import matplotlib
+plt.style.context('seaborn-talk')
+matplotlib.rcParams.update({'font.size': 16})
+from matplotlib import cm
 from scipy import integrate, optimize
 from astropy import units as u
 from memoized_property import memoized_property as property
-from agnsed.xspec_routines import donthcomp
+from pyagn.xspec_routines import donthcomp
 
 
 def convert_units(old, new_unit):
@@ -32,46 +37,45 @@ class SED:
 
     energy_min = 1e-4 # keV
     energy_max = 200. # keV
-    energy_range = np.geomspace(energy_min, energy_max, 100)
-    energy_range_erg = convert_units(energy_range * u.keV, u.erg) 
-    freq_min = convert_units(energy_min * u.keV, u.Hz)
-    freq_max = convert_units(energy_max * u.keV, u.Hz )
-    freq_range = np.geomspace(freq_min, freq_max, 100)
+    energy_range = np.geomspace(energy_min, energy_max, 100) # keV
+    energy_range_erg = convert_units(energy_range * u.keV, u.erg) #erg
 
-    def __init__(self, M = 1e8, mdot = 0.5, astar = 0, sign = 1, hard_xray_fraction = 0.02, corona_electron_energy = 100, warm_electron_energy = 0.2, warm_photon_index = 2.5,  reprocessing = False, reflection_albedo = 0.3):
+    def __init__(self, M = 1e8, mdot = 0.5, astar = 0, sign = 1, reprocessing = False, hard_xray_fraction = 0.02, corona_electron_energy = 100, warm_electron_energy = 0.2, warm_photon_index = 2.5, reflection_albedo = 0.3):
 
         # read parameters #
         self.M = M # black hole mass in solar masses
-        self.mdot = mdot # mdot = Mdot / Mdot_Edd
+        self.mdot = mdot # mdot = Mdot / Mdot_Eddington
         self.astar = astar # dimensionless black hole spin
         self.spin_sign = sign # +1 for prograde rotation, -1 for retrograde
 
         # useful quantities #
         self.Rg = const.G * M * const.Ms / const.c ** 2 # gravitational radius
-        #self.isco = self.compute_isco() # Innermost Stable Circular Orbit
-        #self.eta = self.compute_efficiency() # Accretion efficiency defined as L = \eta \dot M c^2
+        
+        # model parameters
         self.hard_xray_fraction = hard_xray_fraction # fraction of energy in Eddington units in the corona.
-        self.corona_electron_energy = corona_electron_energy
-        self.warm_electron_energy = warm_electron_energy
-        self.warm_photon_index = warm_photon_index
-        self.reflection_albedo = reflection_albedo
+        self.corona_electron_energy = corona_electron_energy # temperature of the corona's electrons in keV.
+        self.warm_electron_energy = warm_electron_energy # temperature of the soft region's electrons in keV.
+        self.warm_photon_index = warm_photon_index # powerlaw index of the warm component. 
+        self.reflection_albedo = reflection_albedo # reflection albedo for the reprocessed flux.
         self.electron_rest_mass = 511. #kev
         self.corona_height = min(100., self.corona_radius)
+        
+        # set reprocessing to false to compute corona luminosity
         self.reprocessing = False
         self.corona_luminosity_norepr = self.corona_luminosity
-        self.reprocessing = reprocessing
+        self.reprocessing = reprocessing # set reprocessing to the desired value
         
         try:
             assert(reprocessing in [False,True])#
         except:
-            print("Reprocessing has to be either False (no reprocessing) or True (include reprocessing)")
-        # corona variables
+            print("Reprocessing has to be either False (no reprocessing) or True (include reprocessing).")
 
     @property
     def isco(self):
         """
         Computes the Innermost Stable Circular Orbit. Depends only on astar.
         """
+        
         z1 = 1 + (1 - self.astar**2)**(1 / 3) * ((1 + self.astar)**(1 / 3) + (1 - self.astar)**(1 / 3))
         z2 = np.sqrt(3 * self.astar**2 + z1**2)
         rms = 3 + z2 - self.spin_sign * np.sqrt((3 - z1) * (3 + z1 + 2 * z2))
@@ -87,10 +91,11 @@ class SED:
         isco :  float
                 Innermost stable circular orbit
         """ 
+        
         eta = 1 - np.sqrt( 1 - 2 / (3 * self.isco) )
         return eta
 
-    def _nt_rel_factors(self, r=6):
+    def _nt_rel_factors(self, r):
         """
         Relatistic A,B,C factors of the Novikov-Thorne model.
         
@@ -98,7 +103,7 @@ class SED:
             Black Hole Mass in solar Masses
         -----------
         r : float
-            Disc radial distance.
+            disk radial distance.
         """
 
         yms = np.sqrt(self.isco)
@@ -128,6 +133,7 @@ class SED:
         M : float
             Black Hole Mass in solar Masses
         """
+        
         Ledd = const.emissivity_constant * self.Rg
         return Ledd
 
@@ -136,6 +142,7 @@ class SED:
         """
         Bolumetric Luminosity given by L = mdot * Ledd.
         """
+        
         return self.eddington_luminosity * self.mdot
     
     @property
@@ -160,16 +167,16 @@ class SED:
         
 
     """
-    Disc functions.
+    disk functions.
     """
 
-    def disc_nt_temperature4(self, r):
+    def disk_nt_temperature4(self, r):
         """
-        Computes Novikov-Thorne temperature in Kelvin (to the power of 4) of accretion disc annulus at radius r.
+        Computes Novikov-Thorne temperature in Kelvin (to the power of 4) of accretion disk annulus at radius r.
         Parameters
         ----------
         r : float
-            Disc radius in Rg. 
+            disk radius in Rg. 
         """
 
         nt_constant = 3 * const.m_p * const.c**5 / ( 2 * const.sigma_sb * const.sigma_t * const.G * const.Ms)
@@ -178,98 +185,81 @@ class SED:
         t4 = nt_constant * rel_factor * aux
         return t4
 
-    def disc_temperature4(self,r):
+    def disk_temperature4(self,r):
         """
-        Disc effective temperature. This takes into account reprocessing.
+        disk effective temperature. This takes into account reprocessing.
         """
-        radiance = self.disc_nt_temperature4(r) 
+        
+        radiance = self.disk_nt_temperature4(r) 
         if( self.reprocessing ):
             radiance += self.reprocessed_flux(r) / const.sigma_sb
         teff4 = radiance 
         return teff4
 
-    def disc_spectral_radiance_freq(self, nu, r):
+    def disk_spectral_radiance(self, energy, r):
         """
-        Disc spectral radiance in units of erg / cm^2 / sr, assuming black-body radiation.
-
-        Parameters
-        ----------
-        nu : float
-             Frequency in Hz.
-        r :  float
-             Disc radius in Rg.
-        """
-
-        bb_constant = 2 * const.h / (const.c ** 2)
-        temperature = self.disc_temperature4(r) ** (1./4.)
-        planck_spectrum_exp = np.exp( const.h * nu / ( const.k_B *  temperature ))
-        planck_spectrum = bb_constant * nu**3 * 1./ ( planck_spectrum_exp - 1)
-        return planck_spectrum
-
-    def disc_spectral_radiance(self, energy, r):
-        """
-        Disc spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
+        disk spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
 
         Parameters
         ----------
         energy : float
              Energy in erg.
         r :  float
-             Disc radius in Rg.
+             disk radius in Rg.
         """
 
         bb_constant = 2 / (const.h**3 * const.c ** 2)
-        temperature = self.disc_temperature4(r) ** (1./4.)
+        temperature = self.disk_temperature4(r) ** (1./4.)
         planck_spectrum_exp = np.exp( energy / ( const.k_B *  temperature ))
         planck_spectrum = bb_constant * energy**3 * 1./ ( planck_spectrum_exp - 1)
         return planck_spectrum
 
-    def disc_radiance(self, r):
+    def disk_radiance(self, r):
         """
-        Disc radiance in units of erg / cm^2 / s / sr, assuming black-body radiation.
+        disk radiance in units of erg / cm^2 / s / sr, assuming black-body radiation.
 
         Parameters
         ----------
         r : float
-            Disc radius in Rg.
+            disk radius in Rg.
         """
 
-        radiance = const.sigma_sb * self.disc_temperature4(r)
+        radiance = const.sigma_sb * self.disk_temperature4(r)
         return radiance
 
-    def disc_spectral_luminosity(self, energy):
+    def disk_spectral_luminosity(self, energy):
         """
-        Disc spectral luminosity in units of 1 / s.
+        disk spectral luminosity in units of 1 / s.
 
         Parameters
         ----------
         energy : float
             Energy in erg.
         """
-        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disc_spectral_radiance(energy,r), self.corona_radius * 2., self.gravity_radius)[0]
-        spectral_lumin = 2 * radial_integral # 2 sides of the disc
+        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy,r), self.corona_radius * 2., self.gravity_radius)[0]
+        spectral_lumin = 2 * radial_integral # 2 sides of the disk
         return spectral_lumin
     
     @property
-    def disc_luminosity(self):
+    def disk_luminosity(self):
         """
-        Disc Luminosityin units of erg / s.
+        disk Luminosityin units of erg / s.
         """
 
         constant =  const.sigma_sb * 4 * np.pi * self.Rg**2
-        lumin = constant * integrate.quad(lambda r: r*self.disc_temperature4(r), 2.*self.corona_radius, self.gravity_radius)[0]
+        lumin = constant * integrate.quad(lambda r: r*self.disk_temperature4(r), 2.*self.corona_radius, self.gravity_radius)[0]
         return lumin
 
-    def disc_truncated_luminosity(self, r_min, r_max):
+    def disk_truncated_luminosity(self, r_min, r_max):
         """
-        Disc Luminosity in units of erg / s.
+        disk Luminosity in units of erg / s.
 
         Parameters
         ----------
         r_in : float
-               Inner disc radius. Defaults to ISCO.
+               Inner disk radius. Defaults to ISCO.
         r_max: float
-                Outer disc radius. Defaults to 1400Rg.
+                Outer disk radius. Defaults to 1400Rg.
         """
 
         if(r_min == None):
@@ -278,36 +268,33 @@ class SED:
             r_max = self.gravity_radius
 
         constant =  const.sigma_sb * 4 * np.pi * self.Rg**2
-        lumin = constant * integrate.quad(lambda r: r*self.disc_nt_temperature4(r), r_min, r_max)[0]
+        lumin = constant * integrate.quad(lambda r: r*self.disk_nt_temperature4(r), r_min, r_max)[0]
         return lumin
 
     @property
-    def disc_sed(self):
+    def disk_sed(self):
         """
-        Disc SED in energy units. First row is xaxis, second is yaxis.
-        yaxis: EL_E[ KeV KeV / s / KeV]
-        xaxis: E [KeV]
+        disk SED in energy units.
+        EL_E[ KeV KeV / s / KeV]
         """
         energy_range_erg = convert_units(self.energy_range * u.keV, u.erg)
         lumin = []
         for energy_erg in energy_range_erg:
-            lumin.append(self.disc_spectral_luminosity(energy_erg))
+            lumin.append(self.disk_spectral_luminosity(energy_erg))
         sed = np.array(lumin) * self.energy_range
         return sed
     
-    def disc_flux(self, distance):
-        return self.disc_sed / (4*np.pi*distance**2)
+    def disk_flux(self, distance):
+        """
+        Flux of the disk component in units of keV^2 ( Photons / cm^2 / s / keV).
         
-    @property
-    def disc_peak_energy(self):
+        Parameters
+        ----------
+        distance: float
+                  Distance to the source in cm.
         """
-        Energy of maximum disc emission.
-        """
-
-        arg_max = np.argmax(self.disc_sed)
-        energy_max = self.energy_range[arg_max]
-        return energy_max
-
+        return self.disk_sed / (4*np.pi*distance**2)
+        
     """
     Corona section. Hot compton thin region, responsible for hard X-Ray emission.
     """
@@ -332,14 +319,14 @@ class SED:
                 Candidate corona radius.
         """
 
-        truncated_disc_lumin = self.disc_truncated_luminosity(r_min = self.isco, r_max = r_cor)
-        lumin_diff = truncated_disc_lumin - self.corona_dissipated_luminosity
+        truncated_disk_lumin = self.disk_truncated_luminosity(r_min = self.isco, r_max = r_cor)
+        lumin_diff = truncated_disk_lumin - self.corona_dissipated_luminosity
         return lumin_diff
 
     @property
     def corona_radius(self):
         """
-        Computes corona radius.
+        Computes corona radius in Rg.
         """
 
         try:
@@ -351,12 +338,12 @@ class SED:
 
     def _corona_covering_factor(self, r):
         """
-        Corona covering factor as seen from the disc at radius r > r_cor.
+        Corona covering factor as seen from the disk at radius r > r_cor.
 
         Parameters
         ----------
         r : float
-            Observer disc radius.
+            Observer disk radius.
         """
 
         if ( r < self.corona_radius):
@@ -370,10 +357,10 @@ class SED:
     def corona_seed_luminosity(self):
         """
         Seed photon luminosity intercepted from the warm region and the outer disk. 
-        Calculated assuming a truncated disc and spherical hot flow geometry.
+        Calculated assuming a truncated disk and spherical hot flow geometry.
         """
 
-        integral = integrate.quad( lambda r: r * self.disc_temperature4(r) * self._corona_covering_factor(r), self.corona_radius, self.gravity_radius)[0]
+        integral = integrate.quad( lambda r: r * self.disk_temperature4(r) * self._corona_covering_factor(r), self.corona_radius, self.gravity_radius)[0]
         constant = 4 * self.Rg **2 * const.sigma_sb 
         seed_lumin = constant * integral
         return seed_lumin
@@ -381,7 +368,7 @@ class SED:
     @property
     def corona_luminosity(self):
         """
-        Total corona luminosity, given by the sum of the seed photons and the truncated disc flow.
+        Total corona luminosity, given by the sum of the seed photons and the truncated disk flow.
         """
 
         corona_lum = self.corona_seed_luminosity + self.corona_dissipated_luminosity
@@ -400,22 +387,31 @@ class SED:
 
     def corona_flux(self, distance):
         """
-        Corona SED computed using donthcomp from Xspec.
+        Corona flux computed using donthcomp from Xspec.
+        
+        Parameters
+        ----------
+        
+        distance : float
+                   distance to source.
         """
 
         gamma = self.corona_photon_index
         kt_e = self.corona_electron_energy
-        t_corona = self.disc_temperature4(self.corona_radius)**(1./4.) * const.k_B
+        t_corona = self.disk_temperature4(self.corona_radius)**(1./4.) * const.k_B
         t_corona_kev = convert_units(t_corona * u.erg, u.keV)
         ywarm = (4./9. * self.warm_photon_index) ** (-4.5)
         params = [gamma, kt_e, t_corona_kev * np.exp(ywarm), 0, 0]
-        photon_number_flux = donthcomp(ear = self.energy_range, param = params)
+        photon_number_flux = donthcomp(ear = self.energy_range, param = params) # units of Photons / cm^2 / s / keV
+        
+        # We integrate the flux only where is non-zero.
         mask = photon_number_flux > 0
         flux_array = np.zeros(len(self.energy_range))
-        #flux = integrate.simps(x=self.energy_range_erg, y=photon_number_flux)
-        flux = integrate.trapz(x= self.energy_range_erg, y=photon_number_flux)
+        flux = integrate.simps(x=self.energy_range_erg, y=photon_number_flux) # units of Photons / cm^2 / s
+        
+        # We renormalize to the correct distance.
         ratio = (self.corona_luminosity / (4 * np.pi* distance**2)) / flux
-        flux = ratio * photon_number_flux[mask] * self.energy_range[mask]
+        flux = ratio * photon_number_flux[mask] * self.energy_range[mask] # units of keV / cm^2 / s
         flux_array[mask] = flux
         return flux_array
 
@@ -424,15 +420,23 @@ class SED:
     """ 
 
     def warm_flux_r(self, radius):
+        """
+        Photon flux per energy bin for a disk annulus at radius radius in the warm Compton region.
+        
+        Parameters
+        ----------
+        
+        radius : float
+                 disk radius.
+        """
+        
         gamma = self.warm_photon_index
         kt_e = self.warm_electron_energy
-        t_warm = self.disc_temperature4(radius)**(1./4.) * const.k_B
+        t_warm = self.disk_temperature4(radius)**(1./4.) * const.k_B
         t_warm_kev = convert_units(t_warm * u.erg, u.keV)
         params = [gamma, kt_e, t_warm_kev, 0, 0]
-        #print(params)
         photon_number_flux = donthcomp(ear = self.energy_range, param = params)
-        #flux = integrate.trapz(x= self.energy_range_erg, y=photon_number_flux)
-        return photon_number_flux
+        return photon_number_flux # units of Photons / cm^2 / s / keV
 
     #@property
     def warm_flux(self, distance):
@@ -440,27 +444,26 @@ class SED:
         warm SED in energy units, [ KeV KeV / s / KeV].
         """
 
-        r_range = np.linspace(self.corona_radius, 2. * self.corona_radius,10)
+        r_range = np.linspace(self.corona_radius, 2. * self.corona_radius,10) # the soft-compton region extends form Rcor to 2Rcor.
         grid = np.zeros((len(r_range), len(self.energy_range)))
-        #flux_r_list = []
-        
         for i,r in enumerate(r_range):
+            # we first integrate along the relevant energies
             flux_r_E = self.warm_flux_r(r)
             mask = flux_r_E>0
             flux_r = integrate.trapz(x= self.energy_range_erg[mask], y=flux_r_E[mask])
-            disc_lumin = 4 * np.pi * (self.Rg)**2. * r * self.disc_radiance(r)
-            disc_flux = disc_lumin / (4. * np.pi * distance**2)
+            # we then normalize the flux using the local disc flux.
+            disk_lumin = 4 * np.pi * (self.Rg)**2. * r * self.disk_radiance(r)
+            disk_flux = disk_lumin / (4. * np.pi * distance**2)
             warm_lumin = 4 * np.pi * flux_r * r * (self.Rg**2)
-            ratio = disc_flux / flux_r
+            ratio = disk_flux / flux_r
             flux_r = ratio * flux_r_E[mask] * self.energy_range[mask]
-            grid[i,mask] = flux_r
-            #flux_r_list.append(np.array(flux_r))
+            grid[i,mask] = flux_r # units of keV / cm^2 / s / per annulus.
             
-        fluxes = []
+        # we now integrate over all radii.
+        flux_array = []
         for row in np.transpose(grid):
-            fluxes.append(integrate.simps(x = r_range, y = row))
-        #flux_r_list = flux_r_list
-        return fluxes
+            flux_array.append(integrate.simps(x = r_range, y = row))
+        return flux_array
     
     def total_spectral_luminosity(self, nu):
         """
@@ -473,9 +476,9 @@ class SED:
         """
 
         lumin_corona = self.corona_spectral_luminosity(nu)
-        lumin_disc = self.disc_spectral_luminosity(nu)
+        lumin_disk = self.disk_spectral_luminosity(nu)
         lumin_warm = self.warm_spectral_luminosity(nu)
-        total = lumin_corona + lumin_disc + lumin_warm
+        total = lumin_corona + lumin_disk + lumin_warm
         return total
 
     def reprocessed_flux(self, radius):
@@ -495,121 +498,81 @@ class SED:
         return aux
 
 
-# plotting routines 
-    def disc_plot_sed_freq(self):
+    """
+    Plotting Routines.
+    """
+    
+    def plot_disk_flux(self, distance, color = 'b', ax = None, label = None):
         """
-        Plot disc SED in frequency units.
-        yaxis: nuLnu [ Hz erg / s / Hz]
-        xaxis: nu [Hz]
-        """
-
-        sed_freq = self.disc_sed_freq
-        fig, ax = plt.subplots()
-        ax.loglog(self.freq_range, sed_freq)
-        ax.set_ylim(np.max(sed_freq)/1000, 2*np.max(sed_freq))
-        ax.set_xlabel(r"Frequency $\nu$ [ Hz ]")
-        ax.set_ylabel(r"$\nu \, L_\nu$  [ Hz erg / s / Hz ]")
-        return fig, ax
-
-    def disc_plot_sed_energy(self):
-        """
-        Plot disc SED in energy units.
+        Plot disk flux in energy units.
         yaxis: EL_E [ keV keV / s / keV]
         xaxis: E [keV]
         """
 
-        sed_energy = self.disc_sed_energy
-        fig, ax = plt.subplots()
-        ax.loglog(self.energy_range, sed_energy)
-        ax.set_ylim(np.max(sed_energy)/1000, 2*np.max(sed_energy))
+        flux = self.disk_flux(distance)
+        
+        if(ax is None):
+            fig, ax = plt.subplots()
+            
+        ax.loglog(self.energy_range, flux, color = color, label=label, linewidth = 2)
+        ax.set_ylim(np.max(flux) * 1e-2, 2*np.max(flux))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, L_E$  [ keV keV / s / keV]")
-        return fig, ax
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        return ax
 
-    def corona_plot_sed_freq(self):
+    def plot_corona_flux(self, distance, color = 'b', ax = None, label = None):
         """
-        Plot corona SED in frequency unitssel.
-        yaxis: nuLnu [ Hz erg / s / Hz]
-        xaxis: nu [Hz]
-        """
-
-        sed_freq = self.corona_sed_freq
-        fig, ax = plt.subplots()
-        ax.loglog(self.freq_range, sed_freq)
-        ax.set_ylim(np.max(sed_freq)/1000, 2*np.max(sed_freq))
-        ax.set_xlabel(r"Frequency $\nu$ [ Hz ]")
-        ax.set_ylabel(r"$\nu \, L_\nu$  [ Hz erg / s / Hz ]")
-        return fig, ax
-
-    def corona_plot_sed_energy(self):
-        """
-        Plot corona SED in energy units.
+        Plot corona flux in energy units.
         yaxis: EL_E [ keV keV / s / keV]
         xaxis: E [keV]
         """
 
-        sed_energy = self.corona_sed_energy
-        fig, ax = plt.subplots()
-        ax.loglog(self.energy_range, sed_energy)
-        ax.set_ylim(np.max(sed_energy)/1000, 2*np.max(sed_energy))
+        flux = self.corona_flux(distance)
+        if(ax is None):
+            fig, ax = plt.subplots()
+        ax.loglog(self.energy_range, flux, color = color, label=label, linewidth = 2)
+        ax.set_ylim(max(flux) * 1e-2, 2*max(flux))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, L_E$  [ keV keV / s / keV]")
-        return fig, ax
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        return ax
 
-    def total_plot_sed_freq(self):
+    def plot_warm_flux(self, distance, color = 'b', ax = None, label = None):
         """
-        Plot total SED in frequency units.
-        yaxis: nuLnu [ Hz erg / s / Hz]
-        xaxis: nu [Hz]
-        """
-
-        sed_freq = self.total_sed_freq
-        fig, ax = plt.subplots()
-        ax.loglog(self.freq_range, sed_freq)
-        ax.set_ylim(np.max(sed_freq)/1000, 2*np.max(sed_freq))
-        ax.set_xlabel(r"Frequency $\nu$ [ Hz ]")
-        ax.set_ylabel(r"$\nu \, L_\nu$  [ Hz erg / s / Hz ]")
-        return fig, ax
-
-    def total_plot_sed_energy(self):
-        """
-        Plot disc SED in energy units.
+        Plot warm component flux in energy units.
         yaxis: EL_E [ keV keV / s / keV]
         xaxis: E [keV]
         """
 
-        sed_energy = self.total_sed_energy
-        fig, ax = plt.subplots()
-        ax.loglog(self.energy_range, sed_energy)
-        ax.set_ylim(np.max(sed_energy)/1000, 2*np.max(sed_energy))
+        flux = self.warm_flux(distance)
+        
+        if(ax is None):
+            fig, ax = plt.subplots()
+        ax.loglog(self.energy_range, flux, color = color, label=label, linewidth = 2)
+        ax.set_ylim(np.max(flux) * 1e-2, 2*np.max(flux))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, L_E$  [ keV keV / s / keV]")
-        return fig, ax
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        return ax
 
 
-
-
-
-
-
-
-
-    
-
-
-
-
-
-    
-
-
-
-
-
-
-    
-
-
-
-
+    def plot_total_flux(self, distance, ax = None):
+        """
+        Plot total flux in energy units.
+        yaxis: EL_E [ keV keV / s / keV]
+        xaxis: E [keV]
+        """
+        colors =iter(cm.viridis(np.linspace(0,1,4)))
+        if(ax is None):
+            print("creating figure.")
+            fig, ax = plt.subplots()
+        flux = self.corona_flux(distance) + self.disk_flux(distance) + self.warm_flux(distance)
+        ax.loglog(self.energy_range, flux, color = next(colors), linewidth=4, label = 'Total')
+        ax = self.plot_disk_flux(distance, color = next(colors), ax=ax, label = 'Disk component')
+        ax = self.plot_corona_flux(distance, color = next(colors), ax=ax, label = 'Corona component')
+        ax = self.plot_warm_flux(distance, color = next(colors), ax=ax, label = 'Warm component')
+        
+        ax.set_ylim(np.max(flux)* 1e-2, 2*np.max(flux))
+        ax.set_xlabel(r"Energy $E$ [ keV ]")
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        ax.legend()
+        return ax
 
