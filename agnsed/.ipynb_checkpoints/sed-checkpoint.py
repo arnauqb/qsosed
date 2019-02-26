@@ -37,7 +37,6 @@ class SED:
     freq_min = convert_units(energy_min * u.keV, u.Hz)
     freq_max = convert_units(energy_max * u.keV, u.Hz )
     freq_range = np.geomspace(freq_min, freq_max, 100)
-    r_max = 1400.
 
     def __init__(self, M = 1e8, mdot = 0.5, astar = 0, sign = 1, hard_xray_fraction = 0.02, corona_electron_energy = 100, warm_electron_energy = 0.2, warm_photon_index = 2.5,  reprocessing = False, reflection_albedo = 0.3):
 
@@ -56,9 +55,12 @@ class SED:
         self.warm_electron_energy = warm_electron_energy
         self.warm_photon_index = warm_photon_index
         self.reflection_albedo = reflection_albedo
-        self.reprocessing = reprocessing
         self.electron_rest_mass = 511. #kev
         self.corona_height = min(100., self.corona_radius)
+        self.reprocessing = False
+        self.corona_luminosity_norepr = self.corona_luminosity
+        self.reprocessing = reprocessing
+        
         try:
             assert(reprocessing in [False,True])#
         except:
@@ -144,6 +146,18 @@ class SED:
 
         Mdot = self.mdot * self.eddington_luminosity() / ( self.efficiency * const.c**2)
         return Mdot
+    
+    @property
+    def gravity_radius(self):
+        """
+        Self-gravity radius as described by Laor & Netzer (1989).
+        """
+        
+        mass = (self.M / 1e9)
+        alpha = 0.1 # assumption
+        r_sg = 2150 * mass**(-2./9.) * self.mdot**(4./9.) * alpha**(2./9.)
+        return r_sg
+        
 
     """
     Disc functions.
@@ -159,8 +173,8 @@ class SED:
         """
 
         nt_constant = 3 * const.m_p * const.c**5 / ( 2 * const.sigma_sb * const.sigma_t * const.G * const.Ms)
-        rel_factor = self._nt_rel_factors( r )
-        aux = self.mdot / ( self.M * self.efficiency * r**3 )
+        rel_factor = self._nt_rel_factors(r)
+        aux = self.mdot / (self.M * self.efficiency * r**3) 
         t4 = nt_constant * rel_factor * aux
         return t4
 
@@ -232,26 +246,18 @@ class SED:
         energy : float
             Energy in erg.
         """
-        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disc_spectral_radiance(energy,r), self.isco, self.r_max)[0]
+        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disc_spectral_radiance(energy,r), self.corona_radius * 2., self.gravity_radius)[0]
         spectral_lumin = 2 * radial_integral # 2 sides of the disc
-        #spectral_lumin = np.clip(spectral_lumin, a_min = 1, a_max = None)
         return spectral_lumin
     
     @property
     def disc_luminosity(self):
         """
         Disc Luminosityin units of erg / s.
-
-        Parameters
-        ----------
-        r_in : float
-               Inner disc radius. Defaults to ISCO.
-        r_max: float
-                Outer disc radius. Defaults to 1400Rg.
         """
 
         constant =  const.sigma_sb * 4 * np.pi * self.Rg**2
-        lumin = constant * integrate.quad(lambda r: r*self.disc_temperature4(r), self.isco, self.r_max)[0]
+        lumin = constant * integrate.quad(lambda r: r*self.disc_temperature4(r), 2.*self.corona_radius, self.gravity_radius)[0]
         return lumin
 
     def disc_truncated_luminosity(self, r_min, r_max):
@@ -269,7 +275,7 @@ class SED:
         if(r_min == None):
             r_min = self.isco
         if(r_max == None):
-            r_max = self.r_max
+            r_max = self.gravity_radius
 
         constant =  const.sigma_sb * 4 * np.pi * self.Rg**2
         lumin = constant * integrate.quad(lambda r: r*self.disc_nt_temperature4(r), r_min, r_max)[0]
@@ -337,7 +343,7 @@ class SED:
         """
 
         try:
-            corona_radius = optimize.brentq(self._corona_compute_radius_kernel, self.isco, self.r_max)
+            corona_radius = optimize.brentq(self._corona_compute_radius_kernel, self.isco, self.gravity_radius)
         except:
             print("Accretion rate is too low to power a corona. Radius is smaller than last circular stable orbit.")
             corona_radius = 0
@@ -367,7 +373,7 @@ class SED:
         Calculated assuming a truncated disc and spherical hot flow geometry.
         """
 
-        integral = integrate.quad( lambda r: r * self.disc_temperature4(r) * self._corona_covering_factor(r), self.corona_radius, self.r_max)[0]
+        integral = integrate.quad( lambda r: r * self.disc_temperature4(r) * self._corona_covering_factor(r), self.corona_radius, self.gravity_radius)[0]
         constant = 4 * self.Rg **2 * const.sigma_sb 
         seed_lumin = constant * integral
         return seed_lumin
@@ -479,8 +485,8 @@ class SED:
 
         R = radius * self.Rg
         M = self.M * const.Ms
-        Lhot = self.corona_luminosity
-        H = self.corona_radius
+        Lhot = self.corona_luminosity_norepr
+        H = self.corona_radius * self.Rg
         a = self.reflection_albedo
         aux = 3. * const.G * M / ( 8 * np.pi * R**3.)
         aux *= 2 * Lhot / (const.c**2)
