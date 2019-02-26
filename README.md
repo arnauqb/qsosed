@@ -66,7 +66,7 @@ fig, ax = plt.subplots(9,6)
 sed_test.plot_total_flux(distance, ax=ax)
 ```
 
-![Total_flux_plot](total_flux.png "Total spectral flux")
+![Total_flux_plot](images/total_flux.png "Total spectral flux")
 
 ## Comparison with Xspec
 
@@ -76,5 +76,5 @@ We can test that our Python implementation gives the same results as the Xspec c
 M = 1e8
 mdot = 0.5
 ```
-![xspec_comparison1](xspec_comparison_1.png "Total spectral flux")
-![xspec_comparison2](xspec_comparison_2.png "Total spectral flux")
+![xspec_comparison1](images/xspec_comparison_1.png "Total spectral flux")
+![xspec_comparison2](images/xspec_comparison_2.png "Total spectral flux")
