@@ -1,15 +1,5 @@
 # PyAGN
 
-## Table of contents
-<!--ts-->
-* [PyAGN](#pyagn)
-      * [Setup](#setup)
-      * [Requirements](#requirements)
-      * [Parameters for the SED class.](#parameters-for-the-sed-class)
-      * [Example usage.](#example-usage)
-      * [Comparison with Xspec](#comparison-with-xspec)
-<!--te-->
-
 This Python module handles various calculations involving the accretion physics of AGNs. In particular, it implements the [qsosed]("https://github.com/HEASARC/xspec_localmodels/tree/master/agnsed") model of Xspec, explained in [Kubota & Done (2018)]("https://arxiv.org/abs/1804.00171") to create the flux energy distribution in the UV/X-Ray band of an AGN.
 
 the SED model has three characteristic regions: the outer standard
@@ -36,6 +26,16 @@ the seed photon temperature for the hot Comptonisation component is
 calculated internally. In contrast to optxagnf, this model does not
 take the color temperature correction into account.
 
+# Table of contents
+<!--ts-->
+* [Setup](#setup)
+* [Requirements](#requirements)
+* [Parameters for the SED class](#parameters-for-the-sed-class)
+* [Example usage](#example-usage)
+* [Comparison with Xspec](#comparison-with-xspec)
+<!--te-->
+
+
 ## Setup
 The easiest install method is
 ```
@@ -56,7 +56,7 @@ matplotlib
 astropy
 ```
 
-## Parameters for the SED class.
+## Parameters for the SED class
 
 | parameter | type    | description                           |default         |
 | --------- | ------- | ---------------------------------------|------------- |
@@ -71,7 +71,7 @@ astropy
 | `warm_photon_index`  | float | The spectral index $\Gamma$ of the warm Comptonisation component. | 2.5 |
 | `reflection_albedo`  | float | reflection albedo for the reprocessed flux | 0.3 |
 
-## Example usage.
+## Example usage
 
 ```python
 from pyagn import SED
