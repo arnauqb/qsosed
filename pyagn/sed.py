@@ -40,13 +40,13 @@ class SED:
     energy_range = np.geomspace(energy_min, energy_max, 100) # keV
     energy_range_erg = convert_units(energy_range * u.keV, u.erg) #erg
 
-    def __init__(self, M = 1e8, mdot = 0.5, astar = 0, sign = 1, reprocessing = False, hard_xray_fraction = 0.02, corona_electron_energy = 100, warm_electron_energy = 0.2, warm_photon_index = 2.5, reflection_albedo = 0.3):
+    def __init__(self, M = 1e8, mdot = 0.5, astar = 0, astar_sign = 1, reprocessing = False, hard_xray_fraction = 0.02, corona_electron_energy = 100, warm_electron_energy = 0.2, warm_photon_index = 2.5, reflection_albedo = 0.3):
 
         # read parameters #
         self.M = M # black hole mass in solar masses
         self.mdot = mdot # mdot = Mdot / Mdot_Eddington
         self.astar = astar # dimensionless black hole spin
-        self.spin_sign = sign # +1 for prograde rotation, -1 for retrograde
+        self.astar_sign = sign # +1 for prograde rotation, -1 for retrograde
 
         # useful quantities #
         self.Rg = const.G * M * const.Ms / const.c ** 2 # gravitational radius
@@ -78,7 +78,7 @@ class SED:
         
         z1 = 1 + (1 - self.astar**2)**(1 / 3) * ((1 + self.astar)**(1 / 3) + (1 - self.astar)**(1 / 3))
         z2 = np.sqrt(3 * self.astar**2 + z1**2)
-        rms = 3 + z2 - self.spin_sign * np.sqrt((3 - z1) * (3 + z1 + 2 * z2))
+        rms = 3 + z2 - self.astar_sign * np.sqrt((3 - z1) * (3 + z1 + 2 * z2))
         return rms
     
     @property
@@ -184,7 +184,23 @@ class SED:
         aux = self.mdot / (self.M * self.efficiency * r**3) 
         t4 = nt_constant * rel_factor * aux
         return t4
+    
+    def reprocessed_flux(self, radius):
+        """
+        Reprocessed flux as given by eq. 5 of Kubota & Done (2018).
+        """
 
+        R = radius * self.Rg
+        M = self.M * const.Ms
+        Lhot = self.corona_luminosity_norepr
+        H = self.corona_radius * self.Rg
+        a = self.reflection_albedo
+        aux = 3. * const.G * M / ( 8 * np.pi * R**3.)
+        aux *= 2 * Lhot / (const.c**2)
+        aux *= H / (6 * self.Rg) * (1.-a)
+        aux *= (1. + (H/R)**2)**(-3./2.)
+        return aux
+    
     def disk_temperature4(self,r):
         """
         disk effective temperature. This takes into account reprocessing.
@@ -465,37 +481,21 @@ class SED:
             flux_array.append(integrate.simps(x = r_range, y = row))
         return flux_array
     
-    def total_spectral_luminosity(self, nu):
+    def total_flux(self, distance):
         """
-        Total spectral luminosity in units of [ erg / s ].
-
+        Total flux at distance.
+        
         Parameters
         ----------
-        nu : float
-             Frequency in Hz.
+        distance : float
+                   distance to source in cm.
         """
-
-        lumin_corona = self.corona_spectral_luminosity(nu)
-        lumin_disk = self.disk_spectral_luminosity(nu)
-        lumin_warm = self.warm_spectral_luminosity(nu)
-        total = lumin_corona + lumin_disk + lumin_warm
-        return total
-
-    def reprocessed_flux(self, radius):
-        """
-        Reprocessed flux as given by eq. 5 of Kubota & Done (2018).
-        """
-
-        R = radius * self.Rg
-        M = self.M * const.Ms
-        Lhot = self.corona_luminosity_norepr
-        H = self.corona_radius * self.Rg
-        a = self.reflection_albedo
-        aux = 3. * const.G * M / ( 8 * np.pi * R**3.)
-        aux *= 2 * Lhot / (const.c**2)
-        aux *= H / (6 * self.Rg) * (1.-a)
-        aux *= (1. + (H/R)**2)**(-3./2.)
-        return aux
+        
+        disk_flux = self.disk_flux(distance)
+        warm_flux = self.warm_flux(distance)
+        corona_flux = self.warm_flux(distance)
+        total_flux = disk_flux + warm_flux + corona_flux
+        return total_flux
 
 
     """
