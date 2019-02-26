@@ -26,6 +26,26 @@ the seed photon temperature for the hot Comptonisation component is
 calculated internally. In contrast to optxagnf, this model does not
 take the color temperature correction into account.
 
+## Setup
+The easiest install method is
+```
+pip install pyagn
+```
+
+## Requirements
+
+Requirements are installed automatically if the package is installed via pip, otherwise they can also be install through
+```
+pip install -r requirements.txt
+```
+The specific requirements are:
+```
+numpy
+scipy
+matplotlib
+astropy
+```
+
 ## Parameters for the SED class.
 
 | parameter | type    | description                           |default         |
