@@ -32,7 +32,8 @@ class SED:
 
     energy_min = 1e-4 # keV
     energy_max = 200. # keV
-    energy_range = np.geomspace(1e-4, 200, 100)
+    energy_range = np.geomspace(energy_min, energy_max, 100)
+    energy_range_erg = convert_units(energy_range * u.keV, u.erg) 
     freq_min = convert_units(energy_min * u.keV, u.Hz)
     freq_max = convert_units(energy_max * u.keV, u.Hz )
     freq_range = np.geomspace(freq_min, freq_max, 100)
@@ -169,7 +170,7 @@ class SED:
         """
         radiance = self.disc_nt_temperature4(r) 
         if( self.reprocessing ):
-           radiance += self.reprocessed_flux(r) / const.sigma_sb
+            radiance += self.reprocessed_flux(r) / const.sigma_sb
         teff4 = radiance 
         return teff4
 
@@ -193,7 +194,7 @@ class SED:
 
     def disc_spectral_radiance(self, energy, r):
         """
-        Disc spectral radiance in units of erg / cm^2 / sr, assuming black-body radiation.
+        Disc spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
 
         Parameters
         ----------
@@ -224,7 +225,7 @@ class SED:
 
     def disc_spectral_luminosity(self, energy):
         """
-        Disc spectral luminosity in units of erg.
+        Disc spectral luminosity in units of 1 / s.
 
         Parameters
         ----------
@@ -285,8 +286,7 @@ class SED:
         lumin = []
         for energy_erg in energy_range_erg:
             lumin.append(self.disc_spectral_luminosity(energy_erg))
-        lumin_kev = convert_units(np.array(lumin) * u.erg, u.keV)
-        sed = np.array(lumin_kev) * self.energy_range**2
+        sed = np.array(lumin) * self.energy_range
         return sed
     
     def disc_flux(self, distance):
@@ -392,7 +392,7 @@ class SED:
         gamma_cor = 7./3. * ( self.corona_dissipated_luminosity / self.corona_seed_luminosity )**(-0.1)
         return gamma_cor
 
-    def corona_sed(self):
+    def corona_flux(self, distance):
         """
         Corona SED computed using donthcomp from Xspec.
         """
@@ -400,50 +400,62 @@ class SED:
         gamma = self.corona_photon_index
         kt_e = self.corona_electron_energy
         t_corona = self.disc_temperature4(self.corona_radius)**(1./4.) * const.k_B
+        t_corona_kev = convert_units(t_corona * u.erg, u.keV)
         ywarm = (4./9. * self.warm_photon_index) ** (-4.5)
-        #print("ywarm: %f"%np.exp(ywarm))
-        params = [gamma, kt_e, t_corona * np.exp(ywarm), 0, 0]
-        sed = donthcomp(ear = self.energy_range, param = params)# * self.energy_range**2 * 4 * np.pi * self.corona_radius**2 * self.Rg**2
-        return sed
+        params = [gamma, kt_e, t_corona_kev * np.exp(ywarm), 0, 0]
+        photon_number_flux = donthcomp(ear = self.energy_range, param = params)
+        mask = photon_number_flux > 0
+        flux_array = np.zeros(len(self.energy_range))
+        #flux = integrate.simps(x=self.energy_range_erg, y=photon_number_flux)
+        flux = integrate.trapz(x= self.energy_range_erg, y=photon_number_flux)
+        ratio = (self.corona_luminosity / (4 * np.pi* distance**2)) / flux
+        flux = ratio * photon_number_flux[mask] * self.energy_range[mask]
+        flux_array[mask] = flux
+        return flux_array
 
     """
     Warm region section.
     """ 
 
-    def warm_sed_r(self, radius):
+    def warm_flux_r(self, radius):
         gamma = self.warm_photon_index
         kt_e = self.warm_electron_energy
         t_warm = self.disc_temperature4(radius)**(1./4.) * const.k_B
-        params = [gamma, kt_e, t_warm, 1, 0]
-        sed = donthcomp(ear = self.energy_range, param = params) * self.energy_range
-        return sed 
+        t_warm_kev = convert_units(t_warm * u.erg, u.keV)
+        params = [gamma, kt_e, t_warm_kev, 0, 0]
+        #print(params)
+        photon_number_flux = donthcomp(ear = self.energy_range, param = params)
+        #flux = integrate.trapz(x= self.energy_range_erg, y=photon_number_flux)
+        return photon_number_flux
 
     #@property
-    def warm_sed(self):
+    def warm_flux(self, distance):
         """
         warm SED in energy units, [ KeV KeV / s / KeV].
         """
 
-        r_range = np.linspace(self.corona_radius, 2*self.corona_radius)
-        sed_r_list = []
-        for r  in r_range:
-            sed_r_list.append(r*self.warm_sed_r(r))
-        sed_r_list = np.array(sed_r_list)
-        seds = []
-        for sed_r in np.transpose(sed_r_list):
-            sed = integrate.simps(x=r_range, y=sed_r)
-            seds.append(sed)
-        sed = np.array(seds) * 4 * np.pi * (self.Rg)**2
-        return sed
-
-
-        #sed_freq = self.warm_sed_freq
-        #sed_energy = convert_units(sed_freq * u.erg / u.s / u.Hz, u.keV / u.s / u.keV)
-        #return sed_energy
-        #gamma = self.warm_alpha + 1
-        #warm_params = [gamma, self.warm_electron_energy, self.]
-
-
+        r_range = np.linspace(self.corona_radius, 2. * self.corona_radius,10)
+        grid = np.zeros((len(r_range), len(self.energy_range)))
+        #flux_r_list = []
+        
+        for i,r in enumerate(r_range):
+            flux_r_E = self.warm_flux_r(r)
+            mask = flux_r_E>0
+            flux_r = integrate.trapz(x= self.energy_range_erg[mask], y=flux_r_E[mask])
+            disc_lumin = 4 * np.pi * (self.Rg)**2. * r * self.disc_radiance(r)
+            disc_flux = disc_lumin / (4. * np.pi * distance**2)
+            warm_lumin = 4 * np.pi * flux_r * r * (self.Rg**2)
+            ratio = disc_flux / flux_r
+            flux_r = ratio * flux_r_E[mask] * self.energy_range[mask]
+            grid[i,mask] = flux_r
+            #flux_r_list.append(np.array(flux_r))
+            
+        fluxes = []
+        for row in np.transpose(grid):
+            fluxes.append(integrate.simps(x = r_range, y = row))
+        #flux_r_list = flux_r_list
+        return fluxes
+    
     def total_spectral_luminosity(self, nu):
         """
         Total spectral luminosity in units of [ erg / s ].
@@ -467,7 +479,7 @@ class SED:
 
         R = radius * self.Rg
         M = self.M * const.Ms
-        Lhot = self.corona_luminosity()
+        Lhot = self.corona_luminosity
         H = self.corona_radius
         a = self.reflection_albedo
         aux = 3. * const.G * M / ( 8 * np.pi * R**3.)
