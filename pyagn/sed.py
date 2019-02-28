@@ -11,7 +11,7 @@ matplotlib.rcParams.update({'font.size': 16})
 from matplotlib import cm
 from scipy import integrate, optimize
 from astropy import units as u
-from memoized_property import memoized_property as property
+#from memoized_property import memoized_property as property
 from pyagn.xspec_routines import donthcomp
 
 
@@ -58,17 +58,26 @@ class SED:
         self.warm_photon_index = warm_photon_index # powerlaw index of the warm component. 
         self.reflection_albedo = reflection_albedo # reflection albedo for the reprocessed flux.
         self.electron_rest_mass = 511. #kev
+        self.corona_radius = self.corona_find_radius
         self.corona_height = min(100., self.corona_radius)
+        self.disk_rin = 0.87 * 2 * self.corona_radius
         
         # set reprocessing to false to compute corona luminosity
-        #self.reprocessing = False
-        #self.corona_luminosity_norepr = self.corona_luminosity
+        self.reprocessing = False
+        self.corona_luminosity = self.corona_compute_luminosity
         self.reprocessing = reprocessing # set reprocessing to the desired value
+        for n in range(0,20):
+            #print("calibrating")
+            # calibrate
+            #print(self.corona_luminosity, self.disk_luminosity, self.corona_seed_luminosity)
+            self.corona_luminosity = self.corona_compute_luminosity
+        
         
         try:
             assert(reprocessing in [False,True])#
         except:
             print("Reprocessing has to be either False (no reprocessing) or True (include reprocessing).")
+            
 
     @property
     def isco(self):
@@ -151,7 +160,7 @@ class SED:
         Mass Accretion Rate in units of g/s.
         """
 
-        Mdot = self.mdot * self.eddington_luminosity() / ( self.efficiency * const.c**2)
+        Mdot = self.mdot * self.eddington_luminosity / ( self.efficiency * const.c**2)
         return Mdot
     
     @property
@@ -199,7 +208,6 @@ class SED:
         aux *= 2 * Lhot / (const.c**2)
         aux *= H / (6 * self.Rg) * (1.-a)
         aux *= (1. + (H/R)**2)**(-3./2.)
-        #print(aux)
         return aux
     
     def disk_temperature4(self,r):
@@ -253,7 +261,7 @@ class SED:
         energy : float
             Energy in erg.
         """
-        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy,r), self.corona_radius * 2., self.gravity_radius)[0]
+        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy,r), self.disk_rin , self.gravity_radius)[0]
         spectral_lumin = 2 * radial_integral # 2 sides of the disk
         return spectral_lumin
     
@@ -264,7 +272,7 @@ class SED:
         """
 
         constant =  const.sigma_sb * 4 * np.pi * self.Rg**2
-        lumin = constant * integrate.quad(lambda r: r*self.disk_temperature4(r), 2.*self.corona_radius, self.gravity_radius)[0]
+        lumin = constant * integrate.quad(lambda r: r*self.disk_temperature4(r), self.disk_rin, self.gravity_radius)[0]
         return lumin
 
     def disk_truncated_luminosity(self, r_min, r_max):
@@ -294,9 +302,8 @@ class SED:
         disk SED in energy units.
         EL_E[ KeV KeV / s / KeV]
         """
-        energy_range_erg = convert_units(self.energy_range * u.keV, u.erg)
         lumin = []
-        for energy_erg in energy_range_erg:
+        for energy_erg in self.energy_range_erg:
             lumin.append(self.disk_spectral_luminosity(energy_erg))
         sed = np.array(lumin) * self.energy_range
         return sed
@@ -341,7 +348,7 @@ class SED:
         return lumin_diff
 
     @property
-    def corona_radius(self):
+    def corona_find_radius(self):
         """
         Computes corona radius in Rg.
         """
@@ -381,13 +388,12 @@ class SED:
         constant = 4 * self.Rg **2 * const.sigma_sb 
         seed_lumin = constant * integral
         return seed_lumin
-
+    
     @property
-    def corona_luminosity(self):
+    def corona_compute_luminosity(self):
         """
         Total corona luminosity, given by the sum of the seed photons and the truncated disk flow.
         """
-
         corona_lum = self.corona_seed_luminosity + self.corona_dissipated_luminosity
         return corona_lum
 
@@ -398,10 +404,11 @@ class SED:
         L_nu = k nu ^(-alpha) = k nu^( 1 - gamma ), where alpha = gamma - 1
         Computed using equation 14 of Beloborodov (1999).
         """     
-        reproc = self.reprocessing
-        self.reprocessing = False
+        #reproc = self.reprocessing
+        #self.reprocessing = False
         gamma_cor = 7./3. * ( self.corona_dissipated_luminosity / self.corona_seed_luminosity )**(-0.1)
-        self.reprocessing = reproc
+        print(gamma_cor)
+        #self.reprocessing = reproc
         return gamma_cor
 
     def corona_flux(self, distance):
@@ -463,7 +470,7 @@ class SED:
         warm SED in energy units, [ KeV KeV / s / KeV].
         """
 
-        r_range = np.linspace(self.corona_radius, 2. * self.corona_radius,10) # the soft-compton region extends form Rcor to 2Rcor.
+        r_range = np.linspace(self.corona_radius, 2. * self.corona_radius,30) # the soft-compton region extends form Rcor to 2Rcor.
         grid = np.zeros((len(r_range), len(self.energy_range)))
         for i,r in enumerate(r_range):
             # we first integrate along the relevant energies
@@ -482,6 +489,7 @@ class SED:
         flux_array = []
         for row in np.transpose(grid):
             flux_array.append(integrate.simps(x = r_range, y = row))
+        flux_array = np.array(flux_array) #* self.disk_luminosity / (4*np.pi*distance**2)
         return flux_array
     
     def total_flux(self, distance):
@@ -511,7 +519,6 @@ class SED:
         yaxis: EL_E [ keV keV / s / keV]
         xaxis: E [keV]
         """
-
         flux = self.disk_flux(distance)
         
         if(ax is None):
@@ -563,17 +570,23 @@ class SED:
         yaxis: EL_E [ keV keV / s / keV]
         xaxis: E [keV]
         """
+        
+        flux_disk = self.disk_flux(distance)
+        flux_warm = self.warm_flux(distance)
+        flux_corona = self.corona_flux(distance)
+        flux_total = flux_disk + flux_warm + flux_corona
+        
         colors =iter(cm.viridis(np.linspace(0,1,4)))
         if(ax is None):
             print("creating figure.")
             fig, ax = plt.subplots()
-        flux = self.corona_flux(distance) + self.disk_flux(distance) + self.warm_flux(distance)
-        ax.loglog(self.energy_range, flux, color = next(colors), linewidth=4, label = 'Total')
-        ax = self.plot_disk_flux(distance, color = next(colors), ax=ax, label = 'Disk component')
-        ax = self.plot_corona_flux(distance, color = next(colors), ax=ax, label = 'Corona component')
-        ax = self.plot_warm_flux(distance, color = next(colors), ax=ax, label = 'Warm component')
+            
+        ax.loglog(self.energy_range, flux_total, color = next(colors), linewidth=4, label = 'Total')
+        ax.loglog(self.energy_range, flux_disk, color = next(colors), linewidth=4, label = 'Disk component')
+        ax.loglog(self.energy_range, flux_warm, color = next(colors), linewidth=4, label = 'Warm Component')
+        ax.loglog(self.energy_range, flux_corona, color = next(colors), linewidth=4, label = 'Corona component')
         
-        ax.set_ylim(np.max(flux)* 1e-2, 2*np.max(flux))
+        ax.set_ylim(np.max(flux_total)* 1e-2, 2*np.max(flux_total))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
         ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
         ax.legend()

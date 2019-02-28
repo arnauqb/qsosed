@@ -28,11 +28,13 @@ take the color temperature correction into account.
 
 # Table of contents
 <!--ts-->
-* [Setup](#setup)
-* [Requirements](#requirements)
-* [Parameters for the SED class](#parameters-for-the-sed-class)
-* [Example usage](#example-usage)
-* [Comparison with Xspec](#comparison-with-xspec)
+- [PyAGN](#pyagn)
+- [Table of contents](#table-of-contents)
+  - [Setup](#setup)
+  - [Requirements](#requirements)
+  - [Parameters for the SED class](#parameters-for-the-sed-class)
+  - [Example usage](#example-usage)
+  - [Comparison with Xspec](#comparison-with-xspec)
 <!--te-->
 
 
