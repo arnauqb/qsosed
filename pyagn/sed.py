@@ -470,7 +470,7 @@ class SED:
         warm SED in energy units, [ KeV KeV / s / KeV].
         """
 
-        r_range = np.linspace(self.corona_radius, 2. * self.corona_radius,30) # the soft-compton region extends form Rcor to 2Rcor.
+        r_range = np.linspace(self.corona_radius, 1.1 * 2. * self.corona_radius,30) # the soft-compton region extends form Rcor to 2Rcor.
         grid = np.zeros((len(r_range), len(self.energy_range)))
         for i,r in enumerate(r_range):
             # we first integrate along the relevant energies
