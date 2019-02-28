@@ -102,7 +102,7 @@ sed_test.plot_total_flux(distance, ax=ax)
 
 ## Comparison with Xspec
 
-We can test that our Python implementation gives the same results as the Xspec code.
+We can test that our Python implementation gives the same results as the Xspec code. Note that in order to recreate Xspec results, the innner disk radius has to be multiplied by a factor of 0.85. This is an artifact of the energy binning in Xspec.
 
 ```
 M = 1e8
