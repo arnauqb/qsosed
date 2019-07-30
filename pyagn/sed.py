@@ -7,7 +7,7 @@ import pyagn.constants as const
 import matplotlib.pyplot as plt
 import matplotlib
 plt.style.context('seaborn-talk')
-matplotlib.rcParams.update({'font.size': 16})
+matplotlib.rcParams.update({'font.size': 28})
 from matplotlib import cm
 from scipy import integrate, optimize
 from astropy import units as u
@@ -60,7 +60,7 @@ class SED:
         self.electron_rest_mass = 511. #kev
         self.corona_radius = self.corona_find_radius
         self.corona_height = min(100., self.corona_radius)
-        self.disk_rin = 0.87 * 2 * self.corona_radius
+        self.disk_rin = 2 * self.corona_radius#0.87 * 2 * self.corona_radius
         
         # set reprocessing to false to compute corona luminosity
         self.reprocessing = False
@@ -527,7 +527,7 @@ class SED:
         ax.loglog(self.energy_range, flux, color = color, label=label, linewidth = 2)
         ax.set_ylim(np.max(flux) * 1e-2, 2*np.max(flux))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
         return ax
 
     def plot_corona_flux(self, distance, color = 'b', ax = None, label = None):
@@ -543,7 +543,7 @@ class SED:
         ax.loglog(self.energy_range, flux, color = color, label=label, linewidth = 2)
         ax.set_ylim(max(flux) * 1e-2, 2*max(flux))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
         return ax
 
     def plot_warm_flux(self, distance, color = 'b', ax = None, label = None):
@@ -560,7 +560,7 @@ class SED:
         ax.loglog(self.energy_range, flux, color = color, label=label, linewidth = 2)
         ax.set_ylim(np.max(flux) * 1e-2, 2*np.max(flux))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
         return ax
 
 
@@ -576,19 +576,25 @@ class SED:
         flux_corona = self.corona_flux(distance)
         flux_total = flux_disk + flux_warm + flux_corona
         
-        colors =iter(cm.viridis(np.linspace(0,1,4)))
+        colors = [(114,36,108), (221,90,97), (249,139,86), (249,248,113)]#iter(cm.viridis(np.linspace(0,1,4)))
+        colors_norm = []
+        for color in colors:
+            color_n = np.array(list(color)) / 255.
+            colors_norm.append(color_n)
+        colors = iter(colors_norm)
+        
         if(ax is None):
             print("creating figure.")
             fig, ax = plt.subplots()
             
-        ax.loglog(self.energy_range, flux_total, color = next(colors), linewidth=4, label = 'Total')
-        ax.loglog(self.energy_range, flux_disk, color = next(colors), linewidth=4, label = 'Disk component')
-        ax.loglog(self.energy_range, flux_warm, color = next(colors), linewidth=4, label = 'Warm Component')
-        ax.loglog(self.energy_range, flux_corona, color = next(colors), linewidth=4, label = 'Corona component')
+        ax.loglog(self.energy_range, flux_total, color = next(colors), linewidth=7, label = 'Total')
+        ax.loglog(self.energy_range, flux_disk, color = next(colors), linewidth=7, label = 'Disc component')
+        ax.loglog(self.energy_range, flux_warm, color = next(colors), linewidth=7, label = 'Warm Component')
+        ax.loglog(self.energy_range, flux_corona, color = next(colors), linewidth=7, label = 'Corona component')
         
         ax.set_ylim(np.max(flux_total)* 1e-2, 2*np.max(flux_total))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV]")
+        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
         ax.legend()
         return ax
 
