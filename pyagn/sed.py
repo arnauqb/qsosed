@@ -71,6 +71,8 @@ class SED:
             # calibrate
             #print(self.corona_luminosity, self.disk_luminosity, self.corona_seed_luminosity)
             self.corona_luminosity = self.corona_compute_luminosity
+
+        self.uv_fraction, self.xray_fraction = self.compute_uv_and_xray_fraction() 
         
         
         try:
@@ -507,6 +509,26 @@ class SED:
         corona_flux = self.warm_flux(distance)
         total_flux = disk_flux + warm_flux + corona_flux
         return total_flux
+
+    def compute_uv_and_xray_fraction(self):
+        """
+        Computes the UV to X-Ray ratio from the SED.
+        We consider X-Ray all the ionizing radiation above 0.1 keV,
+        and UV all radiation between 0.001 keV and 0.1 keV.
+        """
+        sed_flux = self.total_flux(3e26)
+        xray_mask = self.energy_range > 0.1
+        uv_mask = (self.energy_range > 0.001) & (self.energy_range < 0.1)
+        xray_flux = sed_flux[xray_mask]
+        uv_flux = sed_flux[uv_mask]
+        xray_energy_range = self.energy_range[xray_mask]
+        uv_energy_range = self.energy_range[uv_mask]
+        xray_int_flux = integrate.trapz(x=xray_energy_range, y = xray_flux / xray_energy_range)
+        uv_int_flux = integrate.trapz(x=uv_energy_range, y = uv_flux / uv_energy_range)
+        total_flux = integrate.trapz(x=self.energy_range, y = sed_flux / self.energy_range)
+        uv_fraction = uv_int_flux / total_flux
+        xray_fraction = xray_int_flux / total_flux
+        return uv_fraction, xray_fraction
 
 
     """
