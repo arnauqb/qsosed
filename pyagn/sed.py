@@ -434,7 +434,6 @@ class SED:
         #reproc = self.reprocessing
         #self.reprocessing = False
         gamma_cor = 7./3. * ( self.corona_dissipated_luminosity / self.corona_seed_luminosity )**(-0.1)
-        print(gamma_cor)
         #self.reprocessing = reproc
         return gamma_cor
 
