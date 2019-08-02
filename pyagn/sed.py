@@ -7,7 +7,7 @@ import pyagn.constants as const
 import matplotlib.pyplot as plt
 import matplotlib
 plt.style.context('seaborn-talk')
-matplotlib.rcParams.update({'font.size': 28})
+matplotlib.rcParams.update({'font.size': 16})
 from matplotlib import cm
 from scipy import integrate, optimize
 from astropy import units as u
@@ -239,6 +239,21 @@ class SED:
         planck_spectrum_exp = np.exp( energy / ( const.k_B *  temperature ))
         planck_spectrum = bb_constant * energy**3 * 1./ ( planck_spectrum_exp - 1)
         return planck_spectrum
+    
+    def disk_spectral_radiance_kev(self, energy, r):
+        """
+        disk spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
+        Parameters
+        ----------
+        energy : float
+             Energy in keV.
+        r :  float
+             disk radius in Rg.
+        """
+        energy_erg = convert_units(energy * u.keV, u.erg)
+        planck_spec = self.disk_spectral_radiance(energy_erg, r)
+        return planck_spec
+        
 
     def disk_radiance(self, r):
         """
@@ -249,8 +264,21 @@ class SED:
         r : float
             disk radius in Rg.
         """
-        radiance = const.sigma_sb * self.disk_temperature4(r)
+        radiance = const.sigma_sb * self.disk_temperature4(r) 
         return radiance
+
+    def disk_radiance_kev(self, r):
+        """
+        disk radiance in units of kev / cm^2 / s / sr, assuming black-body radiation.
+
+        Parameters
+        ----------
+        r : float
+            disk radius in Rg.
+        """
+        radiance_erg = const.sigma_sb * self.disk_temperature4(r)
+        radiance_kev = convert_units(radiance_erg * u.erg, u.keV)
+        return radiance_kev
 
     def disk_spectral_luminosity(self, energy):
         """
@@ -511,9 +539,11 @@ class SED:
         We consider X-Ray all the ionizing radiation above 0.1 keV,
         and UV all radiation between 0.001 keV and 0.1 keV.
         """
+        ENERGY_UV_LOW_CUT_KEV = 0.00387
+        ENERGY_UV_HIGH_CUT_KEV = 0.06
         sed_flux = self.total_flux(3e26)
-        xray_mask = self.ENERGY_RANGE_KEV > 0.1
-        uv_mask = (self.ENERGY_RANGE_KEV > 0.001) & (self.ENERGY_RANGE_KEV < 0.1)
+        xray_mask = self.ENERGY_RANGE_KEV > ENERGY_UV_HIGH_CUT_KEV
+        uv_mask = (self.ENERGY_RANGE_KEV > ENERGY_UV_LOW_CUT_KEV) & (self.ENERGY_RANGE_KEV < ENERGY_UV_HIGH_CUT_KEV)
         xray_flux = sed_flux[xray_mask]
         uv_flux = sed_flux[uv_mask]
         xray_energy_range = self.ENERGY_RANGE_KEV[xray_mask]
