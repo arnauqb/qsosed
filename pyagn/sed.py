@@ -34,10 +34,12 @@ class SED:
     Class to handle the AGN SED calculation functions. Implements Kubota & Done (2018) paper.
     """
     ENERGY_MIN = 1e-4 # keV
+    ENERGY_MIN_ERG = convert_units(ENERGY_MIN * u.keV, u.erg) 
     ENERGY_MAX = 200. # keV
+    ENERGY_MAX_ERG = convert_units(ENERGY_MAX * u.keV, u.erg) 
     ENERGY_RANGE_NUM_BINS = 100
     ENERGY_RANGE_KEV = np.geomspace(ENERGY_MIN, ENERGY_MAX, ENERGY_RANGE_NUM_BINS)
-    ENERGY_RANGE_ERG = convert_units(ENERGY_RANGE_KEV * u.keV, u.erg) #erg
+    ENERGY_RANGE_ERG = np.geomspace(ENERGY_MIN_ERG, ENERGY_MAX_ERG, ENERGY_RANGE_NUM_BINS)
     ELECTRON_REST_MASS = 511. #kev
 
     def __init__(self, 
@@ -155,9 +157,9 @@ class SED:
         return Ledd
 
     @property
-    def bolumetric_luminosity(self):
+    def bolometric_luminosity(self):
         """
-        Bolumetric Luminosity given by L = mdot * Ledd.
+        Bolometric Luminosity given by L = mdot * Ledd.
         """
         return self.eddington_luminosity * self.mdot
     
@@ -257,7 +259,7 @@ class SED:
 
     def disk_radiance(self, r):
         """
-        disk radiance in units of erg / cm^2 / s / sr, assuming black-body radiation.
+        disk radiance in units of erg / cm^2 / s, assuming black-body radiation.
 
         Parameters
         ----------
@@ -289,7 +291,7 @@ class SED:
         energy : float
             Energy in erg.
         """
-        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy,r), self.disk_rin , self.gravity_radius)[0]
+        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy,r), self.disk_rin, self.gravity_radius)[0]
         spectral_lumin = 2 * radial_integral # 2 sides of the disk
         return spectral_lumin
     
@@ -529,7 +531,7 @@ class SED:
         
         disk_flux = self.disk_flux(distance)
         warm_flux = self.warm_flux(distance)
-        corona_flux = self.warm_flux(distance)
+        corona_flux = self.corona_flux(distance)
         total_flux = disk_flux + warm_flux + corona_flux
         return total_flux
 
