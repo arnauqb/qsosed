@@ -8,7 +8,7 @@ import numpy as np
 from numpy import testing
 from astropy import units as u
 
-sed_test = sed.SED(M=1e8, mdot = 0.5, reprocessing = True)
+sed_test = sed.SED(M=1e8, mdot = 0.5, reprocessing = False)
 
 def test_schwarzschild_radius():
     testing.assert_approx_equal(2 * sed_test.Rg, 2.95337e13, significant = 4)
@@ -54,7 +54,7 @@ def test_disk_radiance():
     """
     const = (sed_test.Rg)**2 * 4 * np.pi
     integral_radiance = const * integrate.quad(lambda r: r * sed_test.disk_radiance(r), sed_test.isco, sed_test.gravity_radius)[0]
-    testing.assert_approx_equal(integral_radiance, sed_test.bolometric_luminosity, significant = 1)
+    testing.assert_approx_equal(integral_radiance, sed_test.bolometric_luminosity, significant = 2)
 
 def test_disk_truncated_spectral_luminosity():
     sed_test.disk_rin = sed_test.isco

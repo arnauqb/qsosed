@@ -37,7 +37,7 @@ class SED:
     ENERGY_MIN_ERG = convert_units(ENERGY_MIN * u.keV, u.erg) 
     ENERGY_MAX = 200. # keV
     ENERGY_MAX_ERG = convert_units(ENERGY_MAX * u.keV, u.erg) 
-    ENERGY_RANGE_NUM_BINS = 100
+    ENERGY_RANGE_NUM_BINS = 500
     ENERGY_RANGE_KEV = np.geomspace(ENERGY_MIN, ENERGY_MAX, ENERGY_RANGE_NUM_BINS)
     ENERGY_RANGE_ERG = np.geomspace(ENERGY_MIN_ERG, ENERGY_MAX_ERG, ENERGY_RANGE_NUM_BINS)
     ELECTRON_REST_MASS = 511. #kev
@@ -437,6 +437,10 @@ class SED:
         #self.reprocessing = reproc
         return gamma_cor
 
+    def compton_photon_flux(self, ear, params):
+        photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s / keV
+        return photon_number_flux
+
     def corona_flux(self, distance):
         """
         Corona flux computed using donthcomp from Xspec.
@@ -488,7 +492,7 @@ class SED:
         t_warm_kev = convert_units(t_warm * u.erg, u.keV)
         params = [gamma, kt_e, t_warm_kev, 0, 0]
         photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params)
-        return photon_number_flux # units of Photons / cm^2 / s / keV
+        return photon_number_flux # units of Photons / cm^2 / s 
 
     #@property
     def warm_flux(self, distance):
@@ -506,7 +510,6 @@ class SED:
             # we then normalize the flux using the local disc flux.
             disk_lumin = 4 * np.pi * (self.Rg)**2. * r * self.disk_radiance(r)
             disk_flux = disk_lumin / (4. * np.pi * distance**2)
-            warm_lumin = 4 * np.pi * flux_r * r * (self.Rg**2)
             ratio = disk_flux / flux_r
             flux_r = ratio * flux_r_E[mask] * self.ENERGY_RANGE_KEV[mask]
             grid[i,mask] = flux_r # units of keV / cm^2 / s / per annulus.
