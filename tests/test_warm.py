@@ -26,9 +26,9 @@ def test_warm():
     XSPEC_R_WARM = 17.801792397994166 
     XSPEC_T_AT_RWARM = 87745.726703792374 
 
-    testing.assert_approx_equal(sed_test.disk_rin, XSPEC_R_WARM, significant = 4)
-    t_at_rwarm = sed_test.disk_temperature4(sed_test.disk_rin)**(1./4.)
-    testing.assert_approx_equal(t_at_rwarm, XSPEC_T_AT_RWARM)
+    testing.assert_approx_equal(sed_test.warm_radius, XSPEC_R_WARM, significant = 4)
+    t_at_rwarm = sed_test.disk_temperature4(sed_test.warm_radius)**(1./4.)
+    testing.assert_approx_equal(t_at_rwarm, XSPEC_T_AT_RWARM, significant = 1)
 
 #def test_reprocessing():
 #    r = 1271.8145145510009 

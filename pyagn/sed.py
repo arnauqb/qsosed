@@ -72,7 +72,7 @@ class SED:
         self.reflection_albedo = reflection_albedo # reflection albedo for the reprocessed flux.
         self.corona_radius = self.corona_find_radius
         self.corona_height = min(100., self.corona_radius)
-        self.disk_rin = 2 * self.corona_radius#0.87 * 2 * self.corona_radius
+        self.warm_radius = 2 * self.corona_radius#0.87 * 2 * self.corona_radius
         
         # set reprocessing to false to compute corona luminosity
         self.reprocessing = False
@@ -185,6 +185,19 @@ class SED:
     """
     disk functions.
     """
+    def disk_nt_temperature4(self, r):
+        """
+        Computes Novikov-Thorne temperature in Kelvin (to the power of 4) of accretion disk annulus at radius r.
+        Parameters
+        ----------
+        r : float
+            disk radius in Rg. 
+        """
+        nt_constant = 3 * const.m_p * const.c**5 / ( 2 * const.sigma_sb * const.sigma_t * const.G * const.Ms)
+        rel_factor = self._nt_rel_factors(r)
+        aux = self.mdot / (self.M * self.efficiency * r**3) 
+        t4 = nt_constant * rel_factor * aux
+        return t4
 
     def disk_nt_temperature4(self, r):
         """
@@ -291,7 +304,7 @@ class SED:
         energy : float
             Energy in erg.
         """
-        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy,r), self.disk_rin, self.gravity_radius)[0]
+        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy, r), self.warm_radius, self.gravity_radius)[0]
         spectral_lumin = 2 * radial_integral # 2 sides of the disk
         return spectral_lumin
     
@@ -301,7 +314,7 @@ class SED:
         disk Luminosityin units of erg / s.
         """
         constant =  const.sigma_sb * 4 * np.pi * self.Rg**2
-        lumin = constant * integrate.quad(lambda r: r*self.disk_temperature4(r), self.disk_rin, self.gravity_radius)[0]
+        lumin = constant * integrate.quad(lambda r: r*self.disk_temperature4(r), self.warm_radius, self.gravity_radius)[0]
         return lumin
 
     def disk_truncated_luminosity(self, r_min, r_max):
@@ -486,6 +499,8 @@ class SED:
                  disk radius.
         """
         
+        if ( radius > self.warm_radius):
+            return np.zeros(self.ENERGY_RANGE_NUM_BINS)
         gamma = self.warm_photon_index
         kt_e = self.warm_electron_energy
         t_warm = self.disk_temperature4(radius)**(1./4.) * const.k_B
@@ -499,14 +514,13 @@ class SED:
         """
         warm SED in energy units, [ KeV KeV / s / KeV].
         """
-
-        r_range = np.linspace(self.corona_radius, 1.1 * 2. * self.corona_radius,30) # the soft-compton region extends form Rcor to 2Rcor.
+        r_range = np.linspace(self.corona_radius, self.warm_radius, 30) # the soft-compton region extends form Rcor to 2Rcor.
         grid = np.zeros((len(r_range), len(self.ENERGY_RANGE_KEV)))
         for i,r in enumerate(r_range):
             # we first integrate along the relevant energies
             flux_r_E = self.warm_flux_r(r)
-            mask = flux_r_E>0
-            flux_r = integrate.trapz(x= self.ENERGY_RANGE_ERG[mask], y=flux_r_E[mask])
+            mask = flux_r_E > 0
+            flux_r = integrate.simps(x= self.ENERGY_RANGE_ERG[mask], y=flux_r_E[mask])
             # we then normalize the flux using the local disc flux.
             disk_lumin = 4 * np.pi * (self.Rg)**2. * r * self.disk_radiance(r)
             disk_flux = disk_lumin / (4. * np.pi * distance**2)
@@ -545,16 +559,17 @@ class SED:
         """
         ENERGY_UV_LOW_CUT_KEV = 0.00387
         ENERGY_UV_HIGH_CUT_KEV = 0.06
-        sed_flux = self.total_flux(3e26)
+
+        sed_flux = self.total_flux(3e26)#self.warm_flux(3e26) + self.disk_flux(3e26)#self.total_flux(3e26)
         xray_mask = self.ENERGY_RANGE_KEV > ENERGY_UV_HIGH_CUT_KEV
-        uv_mask = (self.ENERGY_RANGE_KEV > ENERGY_UV_LOW_CUT_KEV) & (self.ENERGY_RANGE_KEV < ENERGY_UV_HIGH_CUT_KEV)
+        uv_mask = (self.ENERGY_RANGE_KEV >= ENERGY_UV_LOW_CUT_KEV) & (self.ENERGY_RANGE_KEV <= ENERGY_UV_HIGH_CUT_KEV)
         xray_flux = sed_flux[xray_mask]
         uv_flux = sed_flux[uv_mask]
         xray_energy_range = self.ENERGY_RANGE_KEV[xray_mask]
         uv_energy_range = self.ENERGY_RANGE_KEV[uv_mask]
-        xray_int_flux = integrate.trapz(x=xray_energy_range, y = xray_flux / xray_energy_range)
-        uv_int_flux = integrate.trapz(x=uv_energy_range, y = uv_flux / uv_energy_range)
-        total_flux = integrate.trapz(x=self.ENERGY_RANGE_KEV, y = sed_flux / self.ENERGY_RANGE_KEV)
+        xray_int_flux = integrate.simps(x = xray_energy_range, y = xray_flux / xray_energy_range)
+        uv_int_flux = integrate.simps(x = uv_energy_range, y = uv_flux / uv_energy_range)
+        total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV, y = sed_flux / self.ENERGY_RANGE_KEV)
         uv_fraction = uv_int_flux / total_flux
         xray_fraction = xray_int_flux / total_flux
         return uv_fraction, xray_fraction

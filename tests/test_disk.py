@@ -57,7 +57,7 @@ def test_disk_radiance():
     testing.assert_approx_equal(integral_radiance, sed_test.bolometric_luminosity, significant = 2)
 
 def test_disk_truncated_spectral_luminosity():
-    sed_test.disk_rin = sed_test.isco
+    sed_test.warm_radius = sed_test.isco
     total_lumin_erg = []
     for energy_erg in sed_test.ENERGY_RANGE_ERG:
         total_lumin_erg.append(sed_test.disk_spectral_luminosity(energy_erg))
