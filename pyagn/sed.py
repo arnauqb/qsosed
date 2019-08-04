@@ -13,6 +13,7 @@ from scipy import integrate, optimize
 from astropy import units as u
 #from memoized_property import memoized_property as property
 from pyagn.xspec_routines import donthcomp
+import pysnooper # debugging
  
 def convert_units(old, new_unit):
     """
@@ -37,10 +38,13 @@ class SED:
     ENERGY_MIN_ERG = convert_units(ENERGY_MIN * u.keV, u.erg) 
     ENERGY_MAX = 200. # keV
     ENERGY_MAX_ERG = convert_units(ENERGY_MAX * u.keV, u.erg) 
-    ENERGY_RANGE_NUM_BINS = 500
+    ENERGY_RANGE_NUM_BINS = 100
     ENERGY_RANGE_KEV = np.geomspace(ENERGY_MIN, ENERGY_MAX, ENERGY_RANGE_NUM_BINS)
     ENERGY_RANGE_ERG = np.geomspace(ENERGY_MIN_ERG, ENERGY_MAX_ERG, ENERGY_RANGE_NUM_BINS)
     ELECTRON_REST_MASS = 511. #kev
+    ENERGY_UV_LOW_CUT_KEV = 0.00387
+    ENERGY_UV_HIGH_CUT_KEV = 0.06
+    UV_MASK = (ENERGY_RANGE_KEV > ENERGY_UV_LOW_CUT_KEV) & (ENERGY_RANGE_KEV < ENERGY_UV_HIGH_CUT_KEV)
 
     def __init__(self, 
             M = 1e8,
@@ -358,6 +362,15 @@ class SED:
                   Distance to the source in cm.
         """
         return self.disk_sed / (4*np.pi*distance**2)
+    
+    def disk_flux_r(self, r, dr, distance):
+        disk_energy_flux = np.pi * self.disk_spectral_radiance_kev(self.ENERGY_RANGE_KEV, r)
+        disk_lumin = 4 * np.pi * (self.Rg)**2 * r * dr * disk_energy_flux 
+        disk_energy_flux = disk_lumin / ( 4 * np.pi * distance**2)
+        disk_energy_flux = disk_energy_flux * self.ENERGY_RANGE_KEV
+        return disk_energy_flux
+    
+
         
     """
     Corona section. Hot compton thin region, responsible for hard X-Ray emission.
@@ -454,6 +467,20 @@ class SED:
         photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s / keV
         return photon_number_flux
 
+    def corona_photon_flux(self):
+        """
+        Corona flux computed using donthcomp from Xspec.
+        """
+
+        gamma = self.corona_photon_index
+        kt_e = self.corona_electron_energy
+        t_corona = self.disk_temperature4(self.corona_radius)**(1./4.) * const.k_B
+        t_corona_kev = convert_units(t_corona * u.erg, u.keV)
+        ywarm = (4./9. * self.warm_photon_index) ** (-4.5)
+        params = [gamma, kt_e, t_corona_kev * np.exp(ywarm), 0, 0]
+        photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s / keV
+        return photon_number_flux
+
     def corona_flux(self, distance):
         """
         Corona flux computed using donthcomp from Xspec.
@@ -464,16 +491,9 @@ class SED:
         distance : float
                    distance to source.
         """
-
-        gamma = self.corona_photon_index
-        kt_e = self.corona_electron_energy
-        t_corona = self.disk_temperature4(self.corona_radius)**(1./4.) * const.k_B
-        t_corona_kev = convert_units(t_corona * u.erg, u.keV)
-        ywarm = (4./9. * self.warm_photon_index) ** (-4.5)
-        params = [gamma, kt_e, t_corona_kev * np.exp(ywarm), 0, 0]
-        photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s / keV
-        
+   
         # We integrate the flux only where is non-zero.
+        photon_number_flux = self.corona_photon_flux()
         mask = photon_number_flux > 0
         flux_array = np.zeros(len(self.ENERGY_RANGE_KEV))
         flux = integrate.simps(x=self.ENERGY_RANGE_ERG, y=photon_number_flux) # units of Photons / cm^2 / s
@@ -488,9 +508,9 @@ class SED:
     Warm region section.
     """ 
 
-    def warm_flux_r(self, radius):
+    def warm_flux_r(self, r, dr, distance):
         """
-        Photon flux per energy bin for a disk annulus at radius radius in the warm Compton region.
+        Energy flux of the warm compton region. Units of keV / cm^2 / s.
         
         Parameters
         ----------
@@ -499,15 +519,27 @@ class SED:
                  disk radius.
         """
         
-        if ( radius > self.warm_radius):
-            return np.zeros(self.ENERGY_RANGE_NUM_BINS)
+        ff = np.zeros(self.ENERGY_RANGE_NUM_BINS)
+        if ( r > self.warm_radius):
+            return ff 
+        # xspec parameters #
         gamma = self.warm_photon_index
         kt_e = self.warm_electron_energy
-        t_warm = self.disk_temperature4(radius)**(1./4.) * const.k_B
+        t_warm = self.disk_temperature4(r)**(1./4.) * const.k_B
         t_warm_kev = convert_units(t_warm * u.erg, u.keV)
         params = [gamma, kt_e, t_warm_kev, 0, 0]
-        photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params)
-        return photon_number_flux # units of Photons / cm^2 / s 
+        photon_flux_r= donthcomp(ear = self.ENERGY_RANGE_KEV, param = params)# units of Photons / cm^2 / s 
+        mask = photon_flux_r > 0
+        if(len(photon_flux_r[mask]) == 0):
+            return ff
+        energy_flux_r_integrated = integrate.trapz(x= self.ENERGY_RANGE_ERG[mask], y = photon_flux_r[mask]) # energy flux in keV / cm2 / s
+        # we then normalize the flux using the local disc energy flux.
+        disk_lumin = 4 * np.pi * (self.Rg)**2. * r * dr * self.disk_radiance(r)
+        disk_flux = disk_lumin / (4. * np.pi * distance**2)
+        ratio = disk_flux / energy_flux_r_integrated
+        energy_flux_r = ratio * photon_flux_r * self.ENERGY_RANGE_KEV
+        ff[mask] = energy_flux_r[mask]
+        return ff 
 
     #@property
     def warm_flux(self, distance):
@@ -516,23 +548,16 @@ class SED:
         """
         r_range = np.linspace(self.corona_radius, self.warm_radius, 30) # the soft-compton region extends form Rcor to 2Rcor.
         grid = np.zeros((len(r_range), len(self.ENERGY_RANGE_KEV)))
+        dr = r_range[1] - r_range[0]
         for i,r in enumerate(r_range):
-            # we first integrate along the relevant energies
-            flux_r_E = self.warm_flux_r(r)
-            #mask = flux_r_E > 0
-            flux_r = integrate.simps(x= self.ENERGY_RANGE_ERG, y=flux_r_E) #sum(self.ENERGY_RANGE_KEV * flux_r_E) # energy flux in keV / cm2 / s
-            # we then normalize the flux using the local disc energy flux.
-            disk_lumin = 4 * np.pi * (self.Rg)**2. * r * self.disk_radiance(r)
-            disk_flux = disk_lumin / (4. * np.pi * distance**2)
-            ratio = disk_flux / flux_r
-            flux_r = ratio * flux_r_E * self.ENERGY_RANGE_KEV
-            grid[i] = flux_r # units of keV / cm^2 / s / per annulus.
-            
+            ff = self.warm_flux_r(r, dr, distance)
+            grid[i] = ff
         # we now integrate over all radii.
         flux_array = []
         for row in np.transpose(grid):
-            flux_array.append(integrate.simps(x = r_range, y = row))
-        flux_array = np.array(flux_array) #* self.disk_luminosity / (4*np.pi*distance**2)
+            energy_flux = integrate.simps(x = r_range, y = row / dr)
+            flux_array.append(energy_flux)
+        flux_array = np.array(flux_array) 
         return flux_array
     
     def total_flux(self, distance):
@@ -555,14 +580,12 @@ class SED:
         """
         Computes the UV to X-Ray ratio from the SED.
         We consider X-Ray all the ionizing radiation above 0.1 keV,
-        and UV all radiation between 0.001 keV and 0.1 keV.
+        and UV all radiation between 0.00387 keV and 0.06 keV.
         """
-        ENERGY_UV_LOW_CUT_KEV = 0.00387
-        ENERGY_UV_HIGH_CUT_KEV = 0.06
 
-        sed_flux = self.total_flux(3e26)#self.warm_flux(3e26) + self.disk_flux(3e26)#self.total_flux(3e26)
-        xray_mask = self.ENERGY_RANGE_KEV > ENERGY_UV_HIGH_CUT_KEV
-        uv_mask = (self.ENERGY_RANGE_KEV >= ENERGY_UV_LOW_CUT_KEV) & (self.ENERGY_RANGE_KEV <= ENERGY_UV_HIGH_CUT_KEV)
+        sed_flux = self.total_flux(1e26)
+        xray_mask = self.ENERGY_RANGE_KEV > self.ENERGY_UV_HIGH_CUT_KEV
+        uv_mask = self.UV_MASK
         xray_flux = sed_flux[xray_mask]
         uv_flux = sed_flux[uv_mask]
         xray_energy_range = self.ENERGY_RANGE_KEV[xray_mask]
@@ -573,6 +596,31 @@ class SED:
         uv_fraction = uv_int_flux / total_flux
         xray_fraction = xray_int_flux / total_flux
         return uv_fraction, xray_fraction
+
+    def compute_uv_fraction_radial(self, r, dr, distance):
+        warm_flux = self.warm_flux_r(r, dr, distance)
+        disk_flux = self.disk_flux_r(r, dr, distance)
+        total_flux = warm_flux + disk_flux
+        uv_mask = (self.ENERGY_RANGE_KEV > self.ENERGY_UV_LOW_CUT_KEV) & (self.ENERGY_RANGE_KEV < self.ENERGY_UV_HIGH_CUT_KEV)
+        total_flux_uv = total_flux[uv_mask]
+        energy_range_uv = self.ENERGY_RANGE_KEV[uv_mask]
+        int_uv_flux = integrate.simps(x = energy_range_uv, y = total_flux_uv / energy_range_uv)
+        int_total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV, y = total_flux / self.ENERGY_RANGE_KEV)
+        fraction = int_uv_flux / int_total_flux
+        return fraction
+    
+    def compute_uv_fractions(self, distance):
+        r_range = np.linspace(self.corona_radius, self.gravity_radius)
+        dr = r_range[1] - r_range[0]
+        fraction_list = []
+        for r in r_range:
+            uv_fraction = self.compute_uv_fraction_radial(r, dr, distance)
+            fraction_list.append(uv_fraction)
+        return fraction_list
+
+
+
+        
 
 
     """
