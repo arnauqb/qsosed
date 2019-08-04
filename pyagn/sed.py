@@ -519,14 +519,14 @@ class SED:
         for i,r in enumerate(r_range):
             # we first integrate along the relevant energies
             flux_r_E = self.warm_flux_r(r)
-            mask = flux_r_E > 0
-            flux_r = integrate.simps(x= self.ENERGY_RANGE_ERG[mask], y=flux_r_E[mask])
-            # we then normalize the flux using the local disc flux.
+            #mask = flux_r_E > 0
+            flux_r = integrate.simps(x= self.ENERGY_RANGE_ERG, y=flux_r_E) #sum(self.ENERGY_RANGE_KEV * flux_r_E) # energy flux in keV / cm2 / s
+            # we then normalize the flux using the local disc energy flux.
             disk_lumin = 4 * np.pi * (self.Rg)**2. * r * self.disk_radiance(r)
             disk_flux = disk_lumin / (4. * np.pi * distance**2)
             ratio = disk_flux / flux_r
-            flux_r = ratio * flux_r_E[mask] * self.ENERGY_RANGE_KEV[mask]
-            grid[i,mask] = flux_r # units of keV / cm^2 / s / per annulus.
+            flux_r = ratio * flux_r_E * self.ENERGY_RANGE_KEV
+            grid[i] = flux_r # units of keV / cm^2 / s / per annulus.
             
         # we now integrate over all radii.
         flux_array = []
