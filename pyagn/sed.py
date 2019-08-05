@@ -7,7 +7,7 @@ import pyagn.constants as const
 import matplotlib.pyplot as plt
 import matplotlib
 plt.style.context('seaborn-talk')
-matplotlib.rcParams.update({'font.size': 16})
+matplotlib.rcParams.update({'font.size': 15})
 from matplotlib import cm
 from scipy import integrate, optimize
 from astropy import units as u
@@ -38,7 +38,7 @@ class SED:
     ENERGY_MIN_ERG = convert_units(ENERGY_MIN * u.keV, u.erg) 
     ENERGY_MAX = 200. # keV
     ENERGY_MAX_ERG = convert_units(ENERGY_MAX * u.keV, u.erg) 
-    ENERGY_RANGE_NUM_BINS = 100
+    ENERGY_RANGE_NUM_BINS = 500
     ENERGY_RANGE_KEV = np.geomspace(ENERGY_MIN, ENERGY_MAX, ENERGY_RANGE_NUM_BINS)
     ENERGY_RANGE_ERG = np.geomspace(ENERGY_MIN_ERG, ENERGY_MAX_ERG, ENERGY_RANGE_NUM_BINS)
     ELECTRON_REST_MASS = 511. #kev
@@ -364,6 +364,8 @@ class SED:
         return self.disk_sed / (4*np.pi*distance**2)
     
     def disk_flux_r(self, r, dr, distance):
+        if ( r <= self.warm_radius ):
+            return np.zeros(len(self.ENERGY_RANGE_KEV))
         disk_energy_flux = np.pi * self.disk_spectral_radiance_kev(self.ENERGY_RANGE_KEV, r)
         disk_lumin = 4 * np.pi * (self.Rg)**2 * r * dr * disk_energy_flux 
         disk_energy_flux = disk_lumin / ( 4 * np.pi * distance**2)
@@ -546,7 +548,7 @@ class SED:
         """
         warm SED in energy units, [ KeV KeV / s / KeV].
         """
-        r_range = np.linspace(self.corona_radius, self.warm_radius, 30) # the soft-compton region extends form Rcor to 2Rcor.
+        r_range = np.linspace(self.corona_radius, self.warm_radius, 500) # the soft-compton region extends form Rcor to 2Rcor.
         grid = np.zeros((len(r_range), len(self.ENERGY_RANGE_KEV)))
         dr = r_range[1] - r_range[0]
         for i,r in enumerate(r_range):
@@ -598,29 +600,50 @@ class SED:
         return uv_fraction, xray_fraction
 
     def compute_uv_fraction_radial(self, r, dr, distance):
+        """
+        Auxiliary function to compute the radial fraction of UV luminosity.
+        """
+        if ( r == self.corona_radius):
+            corona_flux = self.corona_flux(distance)
+        else:
+            corona_flux = 0
+
         warm_flux = self.warm_flux_r(r, dr, distance)
         disk_flux = self.disk_flux_r(r, dr, distance)
-        total_flux = warm_flux + disk_flux
-        uv_mask = (self.ENERGY_RANGE_KEV > self.ENERGY_UV_LOW_CUT_KEV) & (self.ENERGY_RANGE_KEV < self.ENERGY_UV_HIGH_CUT_KEV)
+        total_flux = warm_flux + disk_flux + corona_flux
+        mask = total_flux > 0
+        uv_mask = mask & self.UV_MASK 
         total_flux_uv = total_flux[uv_mask]
         energy_range_uv = self.ENERGY_RANGE_KEV[uv_mask]
-        int_uv_flux = integrate.simps(x = energy_range_uv, y = total_flux_uv / energy_range_uv)
-        int_total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV, y = total_flux / self.ENERGY_RANGE_KEV)
+        int_uv_flux = integrate.trapz(x = energy_range_uv, y = total_flux_uv / energy_range_uv)
+        int_total_flux = integrate.trapz(x = self.ENERGY_RANGE_KEV[mask], y = total_flux[mask] / self.ENERGY_RANGE_KEV[mask])
         fraction = int_uv_flux / int_total_flux
-        return fraction
+        return fraction, int_uv_flux, int_total_flux
     
-    def compute_uv_fractions(self, distance):
-        r_range = np.linspace(self.corona_radius, self.gravity_radius)
+    def compute_uv_fractions(self, distance, return_flux = False, include_corona = False):
+        """
+        Computes the fraction of UV luminosity to the total UV luminosity at each radii. Return the fraction list, and the UV and total flux (optional).
+
+        Args:
+        distance: distance from the object in cm.
+        return_flux: whether to retun the uv/total flux or not.
+        include_corona: whether to include the radiation from the corona in the calculation or not.
+        """
+        if(include_corona):
+            r_in = self.corona_radius
+        else:
+            r_in = self.warm_radius
+        r_range = np.linspace(r_in, self.gravity_radius, 5000)
         dr = r_range[1] - r_range[0]
         fraction_list = []
+        total_uv_flux = 0
+        total_flux = 0
         for r in r_range:
-            uv_fraction = self.compute_uv_fraction_radial(r, dr, distance)
+            uv_fraction, int_uv_flux, int_total_flux = self.compute_uv_fraction_radial(r, dr, distance)
+            total_uv_flux += int_uv_flux
+            total_flux += int_total_flux
             fraction_list.append(uv_fraction)
-        return fraction_list
-
-
-
-        
+        return fraction_list, total_uv_flux, total_flux
 
 
     """
@@ -701,14 +724,15 @@ class SED:
             print("creating figure.")
             fig, ax = plt.subplots()
             
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_total, color = next(colors), linewidth=7, label = 'Total')
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_disk, color = next(colors), linewidth=7, label = 'Disc component')
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_warm, color = next(colors), linewidth=7, label = 'Warm Component')
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_corona, color = next(colors), linewidth=7, label = 'Corona component')
+        linewidth = 3
+        ax.loglog(self.ENERGY_RANGE_KEV, flux_total, color = next(colors), linewidth=linewidth, label = 'Total')
+        ax.loglog(self.ENERGY_RANGE_KEV, flux_disk, color = next(colors), linewidth=linewidth, label = 'Disc component')
+        ax.loglog(self.ENERGY_RANGE_KEV, flux_warm, color = next(colors), linewidth=linewidth, label = 'Warm Component')
+        ax.loglog(self.ENERGY_RANGE_KEV, flux_corona, color = next(colors), linewidth=linewidth, label = 'Corona component')
         
         ax.set_ylim(np.max(flux_total)* 1e-2, 2*np.max(flux_total))
         ax.set_xlabel(r"Energy $E$ [ keV ]")
         ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
-        ax.legend()
+        #ax.legend()
         return ax
 

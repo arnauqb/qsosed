@@ -42,6 +42,16 @@ def test_corona():
     testing.assert_approx_equal(sed_test.corona_luminosity / sed_test.eddington_luminosity, XSPEC_LHOT, significant = 3)
     testing.assert_approx_equal(sed_test.corona_photon_index, XSPEC_GAMMA_HOT, significant = 3)
 
+def test_corona_luminosity():
+    dist = 1e23
+    corona_lumin = sed_test.corona_luminosity
+    corona_spectral_flux = sed_test.corona_flux(dist)
+    corona_flux = integrate.trapz(x = sed_test.ENERGY_RANGE_KEV, y = corona_spectral_flux / sed_test.ENERGY_RANGE_KEV)
+    corona_lumin_calc = corona_flux * 4 * np.pi * dist**2
+    corona_lumin_calc = convert_units(corona_lumin_calc * u.keV, u.erg)
+    testing.assert_approx_equal(corona_lumin_calc, corona_lumin, significant = 4)
+
+
 # TODO
 #def test_corona_flux():
 #    XSPEC_PHOTON_ENERGY_ERG = 2.96335734e-11
