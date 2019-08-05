@@ -44,6 +44,7 @@ class SED:
     ELECTRON_REST_MASS = 511. #kev
     ENERGY_UV_LOW_CUT_KEV = 0.00387
     ENERGY_UV_HIGH_CUT_KEV = 0.06
+    ENERGY_XRAY_LOW_CUT_KEV = 0.1
     UV_MASK = (ENERGY_RANGE_KEV > ENERGY_UV_LOW_CUT_KEV) & (ENERGY_RANGE_KEV < ENERGY_UV_HIGH_CUT_KEV)
 
     def __init__(self, 
@@ -586,7 +587,7 @@ class SED:
         """
 
         sed_flux = self.total_flux(1e26)
-        xray_mask = self.ENERGY_RANGE_KEV > self.ENERGY_UV_HIGH_CUT_KEV
+        xray_mask = self.ENERGY_RANGE_KEV > self.ENERGY_XRAY_LOW_CUT_KEV
         uv_mask = self.UV_MASK
         xray_flux = sed_flux[xray_mask]
         uv_flux = sed_flux[uv_mask]
@@ -633,17 +634,23 @@ class SED:
             r_in = self.corona_radius
         else:
             r_in = self.warm_radius
+        #r_range = np.geomspace(r_in, self.gravity_radius, 100)
         r_range = np.linspace(r_in, self.gravity_radius, 5000)
+        #d_log_r = np.log10(r_range[1]) - np.log10(r_range[0])
         dr = r_range[1] - r_range[0]
         fraction_list = []
         total_uv_flux = 0
         total_flux = 0
         for r in r_range:
+            #dr = r * (10**d_log_r -1)
             uv_fraction, int_uv_flux, int_total_flux = self.compute_uv_fraction_radial(r, dr, distance)
             total_uv_flux += int_uv_flux
             total_flux += int_total_flux
             fraction_list.append(uv_fraction)
-        return fraction_list, total_uv_flux, total_flux
+        if(return_flux):
+            return fraction_list, total_uv_flux, total_flux
+        else:
+            return fraction_list
 
 
     """

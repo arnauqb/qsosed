@@ -1,1 +1,15 @@
-*/__pycache__/*
+*__pycache__
+*.png
+*.svg
+*-checkpoint.ipynb
+*.pyc
+*.egg-info
+*.ipynb_checkpoints
+build
+env
+*.txt
+*.whl
+*.tar.gz
+
+
+

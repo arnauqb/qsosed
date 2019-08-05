@@ -6,8 +6,8 @@ import numpy as np
 from numpy import testing
 from astropy import units as u
 
-M_range = np.geomspace(1e6,1e10,4)
-mdot_range = np.geomspace(0.05,1,4)
+M_range = np.geomspace(1e6,1e10,2)
+mdot_range = np.geomspace(0.05,1,2)
 
 def test_fraction():
     """
