@@ -4,11 +4,6 @@ Written by Arnau Quera-Bofarull (arnau.quera-bofarull@durham.ac.uk) in Durham, U
 """
 import numpy as np
 import pyagn.constants as const
-import matplotlib.pyplot as plt
-import matplotlib
-plt.style.context('seaborn-talk')
-matplotlib.rcParams.update({'font.size': 15})
-from matplotlib import cm
 from scipy import integrate, optimize
 from astropy import units as u
 #from memoized_property import memoized_property as property
@@ -83,7 +78,7 @@ class SED:
         self.reprocessing = False
         self.corona_luminosity = self.corona_compute_luminosity
         self.reprocessing = reprocessing # set reprocessing to the desired value
-        for n in range(0,20):
+        for _ in range(0,20):
             #print("calibrating")
             # calibrate
             #print(self.corona_luminosity, self.disk_luminosity, self.corona_seed_luminosity)
@@ -136,7 +131,7 @@ class SED:
         y2 = 2 * np.cos((np.arccos(self.astar) + np.pi) / 3)
         y3 = -2 * np.cos(np.arccos(self.astar) / 3)
         y = np.sqrt(r)
-        C = 1 - 3 / r + 2 * self.astar / r**(3 / 2)
+        C = 1 - 3 / r + 2 * self.astar / r**(1.5)
         B = 3 * (y1 - self.astar)**2 * np.log(
             (y - y1) / (yms - y1)) / (y * y1 * (y1 - y2) * (y1 - y3))
         B += 3 * (y2 - self.astar)**2 * np.log(
@@ -612,24 +607,43 @@ class SED:
         """
         Auxiliary function to compute the radial fraction of UV luminosity.
         """
+        component_fractions = []
+        fluxes = []
         if ( r == self.corona_radius):
             corona_flux = self.corona_flux(distance)
+            fluxes.append(corona_flux)
+
         else:
-            corona_flux = 0
+            corona_flux = np.zeros(self.ENERGY_RANGE_NUM_BINS)
+            fluxes.append(corona_flux)
 
         warm_flux = self.warm_flux_r(r, dr, distance)
+        fluxes.append(warm_flux)
         disk_flux = self.disk_flux_r(r, dr, distance)
-        total_flux = warm_flux + disk_flux + corona_flux
+        fluxes.append(disk_flux)
+        total_flux = np.sum(fluxes, axis = 0)
+        assert(len(total_flux) == self.ENERGY_RANGE_NUM_BINS)
         mask = total_flux > 0
-        uv_mask = mask & self.UV_MASK 
-        total_flux_uv = total_flux[uv_mask]
-        energy_range_uv = self.ENERGY_RANGE_KEV[uv_mask]
-        int_uv_flux = integrate.simps(x = energy_range_uv, y = total_flux_uv / energy_range_uv)
+        uv_mask = mask & (self.UV_MASK)
         int_total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV[mask], y = total_flux[mask] / self.ENERGY_RANGE_KEV[mask])
-        fraction = int_uv_flux / int_total_flux
-        return fraction, int_uv_flux, int_total_flux
+        int_total_flux_uv = integrate.simps(x = self.ENERGY_RANGE_KEV[uv_mask], y = total_flux[uv_mask] / self.ENERGY_RANGE_KEV[uv_mask])
+        fraction_total = int_total_flux_uv / int_total_flux
+        int_uv_flux = 0
+        for flux in fluxes:
+            mask = flux > 0
+            uv_mask = mask & (self.UV_MASK)
+            flux_uv = flux[uv_mask]
+            if len(flux_uv) == 0:
+                component_fractions.append(0)
+                continue
+            energy_range_uv = self.ENERGY_RANGE_KEV[uv_mask]
+            int_uv_flux = integrate.simps(x = energy_range_uv, y = flux_uv / energy_range_uv)
+            fraction = int_uv_flux / int_total_flux
+            component_fractions.append(fraction)
+
+        return [fraction_total, int_total_flux_uv, int_total_flux, component_fractions]
     
-    def compute_uv_fractions(self, distance, return_flux = False, include_corona = False):
+    def compute_uv_fractions(self, distance, include_corona = False, return_all = True):
         """
         Computes the fraction of UV luminosity to the total UV luminosity at each radii. Return the fraction list, and the UV and total flux (optional).
 
@@ -642,112 +656,22 @@ class SED:
             r_in = self.corona_radius
         else:
             r_in = self.warm_radius
-        #r_range = np.geomspace(r_in, self.gravity_radius, 5000)
+        #r_range = np.geomspace(r_in, self.gravity_radius, 1000)
         #d_log_r = np.log10(r_range[1]) - np.log10(r_range[0])
-        r_range = np.linspace(r_in, self.gravity_radius, 2000)
+        r_range = np.linspace(r_in, self.gravity_radius, 3000)
         dr = r_range[1] - r_range[0]
         fraction_list = []
         total_uv_flux = 0
         total_flux = 0
+        component_fractions_list = []
         for r in r_range:
         #    dr = r * (10**d_log_r -1)
-            uv_fraction, int_uv_flux, int_total_flux = self.compute_uv_fraction_radial(r, dr, distance)
+            uv_fraction, int_uv_flux, int_total_flux, component_fractions = self.compute_uv_fraction_radial(r, dr, distance)
             total_uv_flux += int_uv_flux
             total_flux += int_total_flux
             fraction_list.append(uv_fraction)
-        if(return_flux):
-            return fraction_list, total_uv_flux, total_flux
+            component_fractions_list.append(component_fractions)
+        if(return_all):
+            return [fraction_list, total_uv_flux, total_flux, component_fractions_list]
         else:
             return fraction_list
-
-
-    """
-    Plotting Routines.
-    """
-    
-    def plot_disk_flux(self, distance, color = 'b', ax = None, label = None):
-        """
-        Plot disk flux in energy units.
-        yaxis: EL_E [ keV keV / s / keV]
-        xaxis: E [keV]
-        """
-        flux = self.disk_flux(distance)
-        
-        if(ax is None):
-            fig, ax = plt.subplots()
-            
-        ax.loglog(self.ENERGY_RANGE_KEV, flux, color = color, label=label, linewidth = 2)
-        ax.set_ylim(np.max(flux) * 1e-2, 2*np.max(flux))
-        ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
-        return ax
-
-    def plot_corona_flux(self, distance, color = 'b', ax = None, label = None):
-        """
-        Plot corona flux in energy units.
-        yaxis: EL_E [ keV keV / s / keV]
-        xaxis: E [keV]
-        """
-
-        flux = self.corona_flux(distance)
-        if(ax is None):
-            fig, ax = plt.subplots()
-        ax.loglog(self.ENERGY_RANGE_KEV, flux, color = color, label=label, linewidth = 2)
-        ax.set_ylim(max(flux) * 1e-2, 2*max(flux))
-        ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
-        return ax
-
-    def plot_warm_flux(self, distance, color = 'b', ax = None, label = None):
-        """
-        Plot warm component flux in energy units.
-        yaxis: EL_E [ keV keV / s / keV]
-        xaxis: E [keV]
-        """
-
-        flux = self.warm_flux(distance)
-        
-        if(ax is None):
-            fig, ax = plt.subplots()
-        ax.loglog(self.ENERGY_RANGE_KEV, flux, color = color, label=label, linewidth = 2)
-        ax.set_ylim(np.max(flux) * 1e-2, 2*np.max(flux))
-        ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
-        return ax
-
-
-    def plot_total_flux(self, distance, ax = None):
-        """
-        Plot total flux in energy units.
-        yaxis: EL_E [ keV keV / s / keV]
-        xaxis: E [keV]
-        """
-        
-        flux_disk = self.disk_flux(distance)
-        flux_warm = self.warm_flux(distance)
-        flux_corona = self.corona_flux(distance)
-        flux_total = flux_disk + flux_warm + flux_corona
-        
-        colors = [(114,36,108), (221,90,97), (249,139,86), (249,248,113)]#iter(cm.viridis(np.linspace(0,1,4)))
-        colors_norm = []
-        for color in colors:
-            color_n = np.array(list(color)) / 255.
-            colors_norm.append(color_n)
-        colors = iter(colors_norm)
-        
-        if(ax is None):
-            print("creating figure.")
-            fig, ax = plt.subplots()
-            
-        linewidth = 3
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_total, color = next(colors), linewidth=linewidth, label = 'Total')
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_disk, color = next(colors), linewidth=linewidth, label = 'Disc component')
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_warm, color = next(colors), linewidth=linewidth, label = 'Warm Component')
-        ax.loglog(self.ENERGY_RANGE_KEV, flux_corona, color = next(colors), linewidth=linewidth, label = 'Corona component')
-        
-        ax.set_ylim(np.max(flux_total)* 1e-2, 2*np.max(flux_total))
-        ax.set_xlabel(r"Energy $E$ [ keV ]")
-        ax.set_ylabel(r"$E \, F_E$  [ keV$^2$ (Photons / cm$^{2}$ / s / keV)]")
-        #ax.legend()
-        return ax
-
