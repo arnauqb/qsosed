@@ -10,6 +10,8 @@ env
 *.txt
 *.whl
 *.tar.gz
+*.pytest*
+launch.json
 
 
 
