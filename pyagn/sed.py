@@ -672,6 +672,6 @@ class SED:
             fraction_list.append(uv_fraction)
             component_fractions_list.append(component_fractions)
         if(return_all):
-            return [fraction_list, total_uv_flux, total_flux, component_fractions_list]
+            return [fraction_list, total_uv_flux, total_flux, np.array(component_fractions_list)]
         else:
             return fraction_list
