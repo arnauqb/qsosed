@@ -53,6 +53,7 @@ class SED:
             warm_electron_energy = 0.2,
             warm_photon_index = 2.5,
             reflection_albedo = 0.3,
+            number_bins_fractions = 3000,
             ):
 
         # read parameters #
@@ -89,6 +90,8 @@ class SED:
             assert(reprocessing in [False,True])#
         except:
             print("Reprocessing has to be either False (no reprocessing) or True (include reprocessing).")
+
+        self.number_bins_fractions = number_bins_fractions
             
     @property
     def isco(self):
@@ -658,7 +661,7 @@ class SED:
             r_in = self.warm_radius
         #r_range = np.geomspace(r_in, self.gravity_radius, 1000)
         #d_log_r = np.log10(r_range[1]) - np.log10(r_range[0])
-        r_range = np.linspace(r_in, self.gravity_radius, 3000)
+        r_range = np.linspace(r_in, self.gravity_radius, self.number_bins_fractions)
         dr = r_range[1] - r_range[0]
         fraction_list = []
         total_uv_flux = 0
