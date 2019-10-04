@@ -46,7 +46,7 @@ def test_corona_luminosity():
     dist = 1e23
     corona_lumin = sed_test.corona_luminosity
     corona_spectral_flux = sed_test.corona_flux(dist)
-    corona_flux = integrate.trapz(x = sed_test.ENERGY_RANGE_KEV, y = corona_spectral_flux / sed_test.ENERGY_RANGE_KEV)
+    corona_flux = integrate.trapz(x = sed_test.ENERGY_RANGE_KEV, y = corona_spectral_flux)
     corona_lumin_calc = corona_flux * 4 * np.pi * dist**2
     corona_lumin_calc = convert_units(corona_lumin_calc * u.keV, u.erg)
     testing.assert_approx_equal(corona_lumin_calc, corona_lumin, significant = 4)

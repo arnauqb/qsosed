@@ -34,8 +34,10 @@ class SED:
     ENERGY_MAX = 200. # keV
     ENERGY_MAX_ERG = convert_units(ENERGY_MAX * u.keV, u.erg) 
     ENERGY_RANGE_NUM_BINS = 500
-    ENERGY_RANGE_KEV = np.geomspace(ENERGY_MIN, ENERGY_MAX, ENERGY_RANGE_NUM_BINS)
-    ENERGY_RANGE_ERG = np.geomspace(ENERGY_MIN_ERG, ENERGY_MAX_ERG, ENERGY_RANGE_NUM_BINS)
+    ENERGY_BIN_EDGES_KEV = np.geomspace(ENERGY_MIN, ENERGY_MAX, ENERGY_RANGE_NUM_BINS + 1)
+    ENERGY_BIN_WIDTHS_KEV = np.diff(ENERGY_BIN_EDGES_KEV)
+    ENERGY_RANGE_KEV = ENERGY_BIN_EDGES_KEV[:-1] + (ENERGY_BIN_EDGES_KEV[1:] - ENERGY_BIN_EDGES_KEV[:-1]) / 2. 
+    ENERGY_RANGE_ERG = convert_units(ENERGY_RANGE_KEV * u.keV, u.erg) #np.geomspace(ENERGY_MIN_ERG, ENERGY_MAX_ERG, ENERGY_RANGE_NUM_BINS)
     ELECTRON_REST_MASS = 511. #kev
     ENERGY_UV_LOW_CUT_KEV = 0.00387
     ENERGY_UV_HIGH_CUT_KEV = 0.06
@@ -307,7 +309,7 @@ class SED:
         energy : float
             Energy in erg.
         """
-        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy, r), self.warm_radius, self.gravity_radius)[0]
+        radial_integral = 2 * np.pi**2 * self.Rg**2 * integrate.quad( lambda r: r * self.disk_spectral_radiance(energy, r), self.warm_radius, self.gravity_radius)[0] # units of 1 / s 
         spectral_lumin = 2 * radial_integral # 2 sides of the disk
         return spectral_lumin
     
@@ -360,7 +362,7 @@ class SED:
         distance: float
                   Distance to the source in cm.
         """
-        return self.disk_sed / (4*np.pi*distance**2)
+        return self.disk_sed / self.ENERGY_RANGE_KEV / (4*np.pi*distance**2) # keV / keV / s / cm^2
     
     def disk_flux_r(self, r, dr, distance):
         """
@@ -373,10 +375,11 @@ class SED:
         """
         if ( r <= self.warm_radius ):
             return np.zeros(len(self.ENERGY_RANGE_KEV))
-        disk_energy_flux = np.pi * self.disk_spectral_radiance_kev(self.ENERGY_RANGE_KEV, r)
-        disk_lumin = 4 * np.pi * (self.Rg)**2 * r * dr * disk_energy_flux 
-        disk_energy_flux = disk_lumin / ( 4 * np.pi * distance**2)
-        disk_energy_flux = disk_energy_flux * self.ENERGY_RANGE_KEV
+
+        disk_energy_flux_bin = np.pi * self.disk_spectral_radiance(self.ENERGY_RANGE_ERG, r) # flux in mid bin units 1 / cm^2 / s
+        disk_energy_flux = disk_energy_flux_bin / self.ENERGY_RANGE_KEV # 1 / cm^2 / s / keV
+        disk_lumin = 4 * np.pi * (self.Rg)**2 * r * dr * disk_energy_flux  # 1 / s / keV
+        disk_energy_flux = disk_lumin / ( 4 * np.pi * distance**2) * self.ENERGY_RANGE_KEV  # keV / cm^2 / s / keV
         return disk_energy_flux
     
 
@@ -473,21 +476,22 @@ class SED:
         return gamma_cor
 
     def compton_photon_flux(self, ear, params):
-        photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s / keV
+        photon_number_per_bin = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s 
+        photon_number_flux = photon_number_per_bin / self.ENERGY_RANGE_KEV # units of Photons /cm^2 / s / keV
         return photon_number_flux
 
     def corona_photon_flux(self):
         """
         Corona flux computed using donthcomp from Xspec.
         """
-
         gamma = self.corona_photon_index
         kt_e = self.corona_electron_energy
         t_corona = self.disk_temperature4(self.corona_radius)**(1./4.) * const.k_B
         t_corona_kev = convert_units(t_corona * u.erg, u.keV)
         ywarm = (4./9. * self.warm_photon_index) ** (-4.5)
         params = [gamma, kt_e, t_corona_kev * np.exp(ywarm), 0, 0]
-        photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s / keV
+        #photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s 
+        photon_number_flux = self.compton_photon_flux(ear=self.ENERGY_RANGE_KEV, params=params)
         return photon_number_flux
 
     def corona_flux(self, distance):
@@ -505,11 +509,12 @@ class SED:
         photon_number_flux = self.corona_photon_flux()
         mask = photon_number_flux > 0
         flux_array = np.zeros(len(self.ENERGY_RANGE_KEV))
-        flux = integrate.simps(x=self.ENERGY_RANGE_ERG, y=photon_number_flux) # units of Photons / cm^2 / s
-        
+        #flux = integrate.simps(x=self.ENERGY_RANGE_KEV, y=photon_number_flux) # photons / cm^2 / s
+        flux = np.sum(self.ENERGY_BIN_WIDTHS_KEV * photon_number_flux * self.ENERGY_RANGE_KEV) # photons / cm^2 /s
+        flux_erg = convert_units(flux * u.keV, u.erg)
         # We renormalize to the correct distance.
-        ratio = (self.corona_luminosity / (4 * np.pi* distance**2)) / flux
-        flux = ratio * photon_number_flux[mask] * self.ENERGY_RANGE_KEV[mask] # units of keV / cm^2 / s
+        ratio = (self.corona_luminosity / (4 * np.pi* distance**2)) / flux_erg
+        flux = ratio * photon_number_flux[mask] * self.ENERGY_RANGE_KEV[mask] # units of keV / cm^2 / s / keV
         flux_array[mask] = flux
         return flux_array
 
@@ -537,11 +542,13 @@ class SED:
         t_warm = self.disk_temperature4(r)**(1./4.) * const.k_B
         t_warm_kev = convert_units(t_warm * u.erg, u.keV)
         params = [gamma, kt_e, t_warm_kev, 0, 0]
-        photon_flux_r = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params)# units of Photons / cm^2 / s 
+        photon_flux_r = self.compton_photon_flux(ear=self.ENERGY_RANGE_KEV, params=params) # 1 / cm^2 / s / keV
         mask = photon_flux_r > 0
         if(len(photon_flux_r[mask]) == 0):
             return ff
-        energy_flux_r_integrated = integrate.simps(x= self.ENERGY_RANGE_ERG[mask], y = photon_flux_r[mask]) # energy flux in keV / cm2 / s
+        #energy_flux_r_integrated = integrate.simps(x= self.ENERGY_RANGE_ERG[mask], y = photon_flux_r[mask]) # energy flux in keV / cm2 / s
+        energy_flux_r_integrated = np.sum(self.ENERGY_BIN_WIDTHS_KEV[mask] * photon_flux_r[mask] * self.ENERGY_RANGE_KEV[mask]) # keV / cm^2 / s
+        energy_flux_r_integrated = convert_units(energy_flux_r_integrated * u.keV, u.erg) 
         # we then normalize the flux using the local disc energy flux.
         disk_lumin = 4 * np.pi * (self.Rg)**2. * r * dr * self.disk_radiance(r)
         disk_flux = disk_lumin / (4. * np.pi * distance**2)
@@ -553,7 +560,7 @@ class SED:
     #@property
     def warm_flux(self, distance):
         """
-        warm SED in energy units, [ KeV KeV / s / KeV].
+        warm SED in energy units, [ KeV / s / KeV].
         """
         r_range = np.linspace(self.corona_radius, self.warm_radius, 500) # the soft-compton region extends form Rcor to 2Rcor.
         grid = np.zeros((len(r_range), len(self.ENERGY_RANGE_KEV)))
@@ -599,9 +606,9 @@ class SED:
         uv_flux = sed_flux[uv_mask]
         xray_energy_range = self.ENERGY_RANGE_KEV[xray_mask]
         uv_energy_range = self.ENERGY_RANGE_KEV[uv_mask]
-        xray_int_flux = integrate.simps(x = xray_energy_range, y = xray_flux / xray_energy_range)
-        uv_int_flux = integrate.simps(x = uv_energy_range, y = uv_flux / uv_energy_range)
-        total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV, y = sed_flux / self.ENERGY_RANGE_KEV)
+        xray_int_flux = integrate.simps(x = xray_energy_range, y = xray_flux)
+        uv_int_flux = integrate.simps(x = uv_energy_range, y = uv_flux)
+        total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV, y = sed_flux)
         uv_fraction = uv_int_flux / total_flux
         xray_fraction = xray_int_flux / total_flux
         return uv_fraction, xray_fraction
@@ -628,8 +635,8 @@ class SED:
         assert(len(total_flux) == self.ENERGY_RANGE_NUM_BINS)
         mask = total_flux > 0
         uv_mask = mask & (self.UV_MASK)
-        int_total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV[mask], y = total_flux[mask] / self.ENERGY_RANGE_KEV[mask])
-        int_total_flux_uv = integrate.simps(x = self.ENERGY_RANGE_KEV[uv_mask], y = total_flux[uv_mask] / self.ENERGY_RANGE_KEV[uv_mask])
+        int_total_flux = integrate.simps(x = self.ENERGY_RANGE_KEV[mask], y = total_flux[mask])
+        int_total_flux_uv = integrate.simps(x = self.ENERGY_RANGE_KEV[uv_mask], y = total_flux[uv_mask])
         fraction_total = int_total_flux_uv / int_total_flux
         int_uv_flux = 0
         for flux in fluxes:
@@ -640,7 +647,7 @@ class SED:
                 component_fractions.append(0)
                 continue
             energy_range_uv = self.ENERGY_RANGE_KEV[uv_mask]
-            int_uv_flux = integrate.simps(x = energy_range_uv, y = flux_uv / energy_range_uv)
+            int_uv_flux = integrate.simps(x = energy_range_uv, y = flux_uv)
             fraction = int_uv_flux / int_total_flux
             component_fractions.append(fraction)
 
