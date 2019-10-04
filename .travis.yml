@@ -1,0 +1,20 @@
+language: python
+python:
+- '3.6'
+- '3.7'
+install:
+- pip install -r requirements.txt
+- pip install .
+script: pytest
+deploy:
+  skip_cleanup: true
+  distributions: sdist bdist_wheel
+  provider: pypi
+  user: arnauq
+  password:
+    secure: ffLUv51cwB3THpzf7Y7hwO/Tnr7lUdvp1KL7A/w55ag0jlv7DV+uLp8o+PtobsES/mwT4fyLiV6slW7GX2EbycQiQwR9fHhdTLpwr7qM4NPE8e3ojCgRonDvasuuG2x/e2KJESBxPS7rQnaezQcW4Elq4/xloyV4lFocxfZX4brB0W3s7YlDM6iaCRB0CiDJHbI4Dxxx6FBcSF6C8PMSvSDk0WKFAFpDlDB737t9kftlGx7BTKAObVpvowgoDx8AG6EiIvx2RQ6jaQuEsyOLQ3BOYRxdAhtnZfKDkUeyTXW34dTm8KfVNjSjp0C0V1x6ng/pznmyEowqxKxFgMkjNY4PFQywG7wUyzm+qU2oTbt1viFOUpVdDcpKO+rJkbeegthaFLqtqQyvZPXBJNEw3EXfkDEPv55ApBGze2FDUTSkkX9u9MqZbSfgT5ldSo6hfKATPLrSt7VRYB2dQJNOtSUP6HgsZWfm4aqpQWVIU7Knw1eQBosA0UioHzYnmlQ3Nd8ee1Ht3Ey2YBBA04fZJ79y/nWH7pF/0iVQJS2h1jJHwf6fhQsgmrOFrGEMeU1dIMn1O1mLbveNqgaRqD7SDZjcwmpjFCXLahSQ+hmxofrpmDcwkuVAASGEr7lwfver1n7KH6btXKNCXMtSO0NuWO/sjhJTeu+4/dosyy6w+jE=
+  on:
+    tags: true
+    branch:
+      - master
+      - /(\d+\.)?(\d+\.)?(\*|\d+)$/

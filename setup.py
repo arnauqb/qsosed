@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
 
-
 with open('README.md') as f:
     readme = f.read()
 
@@ -9,20 +8,15 @@ with open('LICENSE') as f:
     license = f.read()
 
 setup(
-    name='pyagn',
-    version='0.2.0',
-    description='PyAGN: A Python code about AGNs.',
+    name='qsosed',
+    version='0.1.0',
+    description='A physical model for the broadband continuum of Quasars',
     long_description=readme,
     author='Arnau Quera-Bofarull',
     author_email='arnau.quera-bofarull@durham.ac.uk',
-    url='https://github.com/arnauq/pyagn',
+    url='https://github.com/arnauq/qsosed',
     license=license,
     packages=find_packages(exclude=('tests', 'docs')),
-    install_requires = ['numpy',
-                        'astropy',
-                        'scipy',
-                        'matplotlib',
-                        'memoized_property']
-
+    setup_requires=['pbr'],
+    pbr=True,
 )
-
