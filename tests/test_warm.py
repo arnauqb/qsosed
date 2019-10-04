@@ -1,7 +1,7 @@
 import pytest
-import pyagn.sed as sed
-from pyagn.sed import convert_units
-from pyagn import constants
+import qsosed.sed as sed
+from qsosed.sed import convert_units
+from qsosed import constants
 from scipy import integrate
 import numpy as np
 from numpy import testing

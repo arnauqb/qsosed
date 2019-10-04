@@ -1,8 +1,8 @@
 """
 Tests involving the disk component.
 """
-import pyagn.sed as sed
-from pyagn import constants
+import qsosed.sed as sed
+from qsosed import constants
 from scipy import integrate
 import numpy as np
 from numpy import testing
