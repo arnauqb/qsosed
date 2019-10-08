@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from setuptools import setup, find_packages
 
-with open('README.md') as f:
+with open('README.md', encoding="utf-8") as f:
     readme = f.read()
 
 with open('LICENSE') as f:
@@ -16,7 +16,7 @@ setup(
     author_email='arnau.quera-bofarull@durham.ac.uk',
     url='https://github.com/arnauq/qsosed',
     license=license,
-    packages=find_packages(exclude=('tests', 'docs')),
+    packages=find_packages(exclude=('test*', 'docs')),
     setup_requires=['pbr'],
     pbr=True,
 )
