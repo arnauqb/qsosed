@@ -10,11 +10,11 @@ deploy:
   skip_cleanup: true
   distributions: sdist bdist_wheel
   provider: pypi
-  user: arnauq
+  user: __token__
   password:
-    secure: ffLUv51cwB3THpzf7Y7hwO/Tnr7lUdvp1KL7A/w55ag0jlv7DV+uLp8o+PtobsES/mwT4fyLiV6slW7GX2EbycQiQwR9fHhdTLpwr7qM4NPE8e3ojCgRonDvasuuG2x/e2KJESBxPS7rQnaezQcW4Elq4/xloyV4lFocxfZX4brB0W3s7YlDM6iaCRB0CiDJHbI4Dxxx6FBcSF6C8PMSvSDk0WKFAFpDlDB737t9kftlGx7BTKAObVpvowgoDx8AG6EiIvx2RQ6jaQuEsyOLQ3BOYRxdAhtnZfKDkUeyTXW34dTm8KfVNjSjp0C0V1x6ng/pznmyEowqxKxFgMkjNY4PFQywG7wUyzm+qU2oTbt1viFOUpVdDcpKO+rJkbeegthaFLqtqQyvZPXBJNEw3EXfkDEPv55ApBGze2FDUTSkkX9u9MqZbSfgT5ldSo6hfKATPLrSt7VRYB2dQJNOtSUP6HgsZWfm4aqpQWVIU7Knw1eQBosA0UioHzYnmlQ3Nd8ee1Ht3Ey2YBBA04fZJ79y/nWH7pF/0iVQJS2h1jJHwf6fhQsgmrOFrGEMeU1dIMn1O1mLbveNqgaRqD7SDZjcwmpjFCXLahSQ+hmxofrpmDcwkuVAASGEr7lwfver1n7KH6btXKNCXMtSO0NuWO/sjhJTeu+4/dosyy6w+jE=
+    secure: WnKOZBKYDg9VY0gA4ju7WStY+t1EUUw1GUmm/YEtXUS1p2nmubBo/XhMqnM3zhssLysJepziu9Lsk2jT4Jbs0ul2h1mD1cP+G9cm9qBU3mvVM/s3uorLYX5cm2A49MYfQP19nkdh1k4EEUpaOBAqv0KJUj99ltwlkP9L0/mQgLk91rqKyPcaf89527s2D1zwSYP96glublgi9aQUGvie3cnkhLmYmk0meKFkfg70iuYL/MILTFUuxvGqGOLRwUSNUu17SD6hD7eXm4F7tfzxynX/LKBnozWzdWTp0nP7lK/yNtYbAhEP3KebShDoQAAFfVLzelH9LR69ubvQYIKl/vmhsQ/jM4viQBFpDZ0t2FqA5HAReOd+eqtOk4J7zt82BLaY4HoJ7fw8yf8jWK1QgebeqYGfxXajll9iVgakxn0XyVc/FwZ6XrwRiYAx71tw3vChwGWpWw3ghr0wj3jYUSE7wpW2RTmXJYrLZBp5jLYfqFc/ccKLxBiUY3kjJdQJeeTc8Bbh81HleKm4cHHx89Ri415WPDps1GPWi/LmdRYXNu+W/sISXMsOTv8KC2GrDstDdJWyuBE/7ZTRFY4yT3c9GRX4MDH/wty4XcIQfKjkzos6lyrFtXLTIkRPgPpuFPgKzrrd1+Nv7N+tpcEDcZE3UGIdtCWpPYh9XcRHEWc=
   on:
     tags: true
     branch:
-      - master
-      - /(\d+\.)?(\d+\.)?(\*|\d+)$/
+    - master
+    - "/(\\d+\\.)?(\\d+\\.)?(\\*|\\d+)$/"
