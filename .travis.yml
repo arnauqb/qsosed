@@ -8,6 +8,7 @@ install:
 script: pytest
 deploy:
   skip_cleanup: true
+  skip_existing: true
   distributions: sdist bdist_wheel
   provider: pypi
   user: __token__
