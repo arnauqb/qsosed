@@ -1,4 +1,4 @@
-# PyAGN
+# QSOSED
 
 This Python module handles various calculations involving the accretion physics of AGNs. In particular, it implements the [qsosed]("https://github.com/HEASARC/xspec_localmodels/tree/master/agnsed") model of Xspec, explained in [Kubota & Done (2018)]("https://arxiv.org/abs/1804.00171") to create the flux energy distribution in the UV/X-Ray band of an AGN.
 
