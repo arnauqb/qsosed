@@ -222,15 +222,15 @@ class SED:
         """
         Density at the surface of the accretion disc following the Shakura-Sunyaev model. Formula copied from N18 (scaling luminosity).
         """
-        R = r * 2 * self.RG
-        cut = 18 * (self.M / const.M_SUN)**(2./21.) * \
-            (self.mdot / self.eta)**(16./21.) * 2 * self.RG
+        R = r * 2 * self.Rg
+        cut = 18 * (self.M)**(2./21.) * \
+            (self.mdot / self.efficiency)**(16./21.) * 2 * self.Rg
         if (R <= cut):
-            rho = 5.24e-4 * (self.M/const.M_SUN)**(-1.) * \
-                (self.mdot/self.eta)**(-2.) * (R/(2*self.RG))**(3./2.)
+            rho = 5.24e-4 * (self.M)**(-1.) * \
+                (self.mdot/self.efficiency)**(-2.) * (R/(2*self.Rg))**(3./2.)
         else:
-            rho = 4.66 * (self.M/const.M_SUN)**(-7./10.) * (self.mdot /
-                                                            self.eta)**(2./5.) * (R/(2*self.RG))**(-33./20.)
+            rho = 4.66 * (self.M)**(-7./10.) * (self.mdot /
+                                                            self.efficiency)**(2./5.) * (R/(2*self.Rg))**(-33./20.)
         return rho / (const.m_p * self.mu)
 
     def disk_gas_pressure(self,r):
@@ -261,8 +261,9 @@ class SED:
         R = r * self.Rg
         density = self.disk_number_density(r) * const.m_p
         H = np.sqrt(pressure * R**3 / (const.G * self.M * const.Ms * density))
-        return H
-
+        h = H / self.Rg
+        return h
+    
     def reprocessed_flux(self, radius):
         """
         Reprocessed flux as given by eq. 5 of Kubota & Done (2018).
