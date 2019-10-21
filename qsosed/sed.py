@@ -48,6 +48,7 @@ class SED:
             mdot = 0.5,
             astar = 0,
             astar_sign = 1,
+            mu = 1,
             reprocessing = False,
             hard_xray_fraction = 0.02,
             corona_electron_energy = 100,
@@ -62,6 +63,7 @@ class SED:
         self.mdot = mdot # mdot = Mdot / Mdot_Eddington
         self.astar = astar # dimensionless black hole spin
         self.astar_sign = astar_sign # +1 for prograde rotation, -1 for retrograde
+        self.mu = mu
 
         # useful quantities #
         self.Rg = const.G * M * const.Ms / const.c ** 2 # gravitational radius
@@ -185,7 +187,6 @@ class SED:
         r_sg = 2150 * mass**(-2./9.) * self.mdot**(4./9.) * alpha**(2./9.)
         return r_sg
         
-
     """
     disk functions.
     """
@@ -217,6 +218,51 @@ class SED:
         t4 = nt_constant * rel_factor * aux
         return t4
     
+    def disk_number_density(self, r):
+        """
+        Density at the surface of the accretion disc following the Shakura-Sunyaev model. Formula copied from N18 (scaling luminosity).
+        """
+        R = r * 2 * self.RG
+        cut = 18 * (self.M / const.M_SUN)**(2./21.) * \
+            (self.mdot / self.eta)**(16./21.) * 2 * self.RG
+        if (R <= cut):
+            rho = 5.24e-4 * (self.M/const.M_SUN)**(-1.) * \
+                (self.mdot/self.eta)**(-2.) * (R/(2*self.RG))**(3./2.)
+        else:
+            rho = 4.66 * (self.M/const.M_SUN)**(-7./10.) * (self.mdot /
+                                                            self.eta)**(2./5.) * (R/(2*self.RG))**(-33./20.)
+        return rho / (const.m_p * self.mu)
+
+    def disk_gas_pressure(self,r):
+        """
+        Gas pressure of the disk.
+        """
+        density = self.disk_number_density(r) * const.m_p * self.mu
+        temperature = self.disk_nt_temperature4(r)**(1./4.)
+        gas_pressure = density * const.k_B * temperature / (self.mu * const.m_p ) 
+        return gas_pressure
+
+    def disk_radiation_pressure(self,r):
+        """
+        Radiation pressure of the disc.
+        """
+        temperature4 = self.disk_nt_temperature4(r)
+        rad_pressure = 4 * const.sigma_sb * temperature4 / ( 3 * const.c)
+        return rad_pressure
+
+    def disk_total_pressure(self,r):
+        return self.disk_gas_pressure(r) + self.disk_radiation_pressure(r)
+
+    def disk_scale_height(self, r):
+        """
+        Disk scale height H, obtained by solving the vertical hydrostatic equilibrium equation, P/H = rho(GMH/R^3), and ignoring the disc self-gravity.
+        """
+        pressure = self.disk_total_pressure(r)
+        R = r * self.Rg
+        density = self.disk_number_density(r) * const.m_p
+        H = np.sqrt(pressure * R**3 / (const.G * self.M * const.Ms * density))
+        return H
+
     def reprocessed_flux(self, radius):
         """
         Reprocessed flux as given by eq. 5 of Kubota & Done (2018).
