@@ -16,6 +16,7 @@ def test_schwarzschild_radius():
 def test_efficiency():
     testing.assert_approx_equal(sed_test.efficiency, 0.05719, significant = 4)
 
+
 def test_isco():
     testing.assert_approx_equal(sed_test.isco, 6.)
     sed_test_2 = sed.SED(astar = 0.998)
