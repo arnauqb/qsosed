@@ -46,8 +46,8 @@ class SED:
     def __init__(self, 
             M = 1e8,
             mdot = 0.5,
-            astar = 0,
-            astar_sign = 1,
+            spin = 0,
+            spin_sign = 1,
             mu = 1,
             reprocessing = False,
             hard_xray_fraction = 0.02,
@@ -61,8 +61,8 @@ class SED:
         # read parameters #
         self.M = M # black hole mass in solar masses
         self.mdot = mdot # mdot = Mdot / Mdot_Eddington
-        self.astar = astar # dimensionless black hole spin
-        self.astar_sign = astar_sign # +1 for prograde rotation, -1 for retrograde
+        self.spin = spin # dimensionless black hole spin
+        self.spin_sign = spin_sign # +1 for prograde rotation, -1 for retrograde
         self.mu = mu
 
         # useful quantities #
@@ -99,12 +99,12 @@ class SED:
     @property
     def isco(self):
         """
-        Computes the Innermost Stable Circular Orbit. Depends only on astar.
+        Computes the Innermost Stable Circular Orbit. Depends only on spin.
         """
         
-        z1 = 1 + (1 - self.astar**2)**(1 / 3) * ((1 + self.astar)**(1 / 3) + (1 - self.astar)**(1 / 3))
-        z2 = np.sqrt(3 * self.astar**2 + z1**2)
-        rms = 3 + z2 - self.astar_sign * np.sqrt((3 - z1) * (3 + z1 + 2 * z2))
+        z1 = 1 + (1 - self.spin**2)**(1 / 3) * ((1 + self.spin)**(1 / 3) + (1 - self.spin)**(1 / 3))
+        z2 = np.sqrt(3 * self.spin**2 + z1**2)
+        rms = 3 + z2 - self.spin_sign * np.sqrt((3 - z1) * (3 + z1 + 2 * z2))
         return rms
     
     @property
@@ -133,18 +133,18 @@ class SED:
         """
 
         yms = np.sqrt(self.isco)
-        y1 = 2 * np.cos((np.arccos(self.astar) - np.pi) / 3)
-        y2 = 2 * np.cos((np.arccos(self.astar) + np.pi) / 3)
-        y3 = -2 * np.cos(np.arccos(self.astar) / 3)
+        y1 = 2 * np.cos((np.arccos(self.spin) - np.pi) / 3)
+        y2 = 2 * np.cos((np.arccos(self.spin) + np.pi) / 3)
+        y3 = -2 * np.cos(np.arccos(self.spin) / 3)
         y = np.sqrt(r)
-        C = 1 - 3 / r + 2 * self.astar / r**(1.5)
-        B = 3 * (y1 - self.astar)**2 * np.log(
+        C = 1 - 3 / r + 2 * self.spin / r**(1.5)
+        B = 3 * (y1 - self.spin)**2 * np.log(
             (y - y1) / (yms - y1)) / (y * y1 * (y1 - y2) * (y1 - y3))
-        B += 3 * (y2 - self.astar)**2 * np.log(
+        B += 3 * (y2 - self.spin)**2 * np.log(
             (y - y2) / (yms - y2)) / (y * y2 * (y2 - y1) * (y2 - y3))
-        B += 3 * (y3 - self.astar)**2 * np.log(
+        B += 3 * (y3 - self.spin)**2 * np.log(
             (y - y3) / (yms - y3)) / (y * y3 * (y3 - y1) * (y3 - y2))
-        A = 1 - yms / y - 3 * self.astar * np.log(y / yms) / (2 * y)
+        A = 1 - yms / y - 3 * self.spin * np.log(y / yms) / (2 * y)
         factor = (A-B)/C
         return factor
 
