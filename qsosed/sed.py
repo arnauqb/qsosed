@@ -44,18 +44,18 @@ class SED:
     UV_MASK = (ENERGY_RANGE_KEV > ENERGY_UV_LOW_CUT_KEV) & (ENERGY_RANGE_KEV < ENERGY_UV_HIGH_CUT_KEV)
 
     def __init__(self, 
-            M = 1e8,
-            mdot = 0.5,
-            spin = 0,
-            spin_sign = 1,
-            mu = 1,
-            reprocessing = False,
-            hard_xray_fraction = 0.02,
-            corona_electron_energy = 100,
-            warm_electron_energy = 0.2,
-            warm_photon_index = 2.5,
-            reflection_albedo = 0.3,
-            number_bins_fractions = 3000,
+            M=1e8,
+            mdot=0.5,
+            spin=0,
+            spin_sign=1,
+            mu=1,
+            reprocessing=False,
+            hard_xray_fraction=0.02,
+            corona_electron_energy=100,
+            warm_electron_energy=0.2,
+            warm_photon_index=2.5,
+            reflection_albedo=0.3,
+            number_bins_fractions=3000,
             ):
 
         # read parameters #
