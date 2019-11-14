@@ -410,7 +410,7 @@ class SED:
         """
         return self.disk_sed / self.ENERGY_RANGE_KEV / (4*np.pi*distance**2) # keV / keV / s / cm^2
     
-    def disk_flux_r(self, r, dr, distance):
+    def disk_flux_r(self, r, dr, distance, exclude_warm_region=True):
         """
         Spectral energy flux from the disc at a radius r.
 
@@ -419,7 +419,7 @@ class SED:
         dr : annulus width in Rg.
         distance: distance from the source in cm.
         """
-        if ( r <= self.warm_radius ):
+        if ( r <= self.warm_radius and exclude_warm_region):
             return np.zeros(len(self.ENERGY_RANGE_KEV))
 
         disk_energy_flux_bin = np.pi * self.disk_spectral_radiance(self.ENERGY_RANGE_ERG, r) # flux in mid bin units 1 / cm^2 / s
