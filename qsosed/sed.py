@@ -82,13 +82,13 @@ class SED:
         self.reprocessing = False
         self.corona_luminosity = self.corona_compute_luminosity
         self.reprocessing = reprocessing # set reprocessing to the desired value
-        for _ in range(0,20):
+        #for _ in range(0,20):
             #print("calibrating")
             # calibrate
             #print(self.corona_luminosity, self.disk_luminosity, self.corona_seed_luminosity)
-            self.corona_luminosity = self.corona_compute_luminosity
+            #self.corona_luminosity = self.corona_compute_luminosity
 
-        self.uv_fraction, self.xray_fraction = self.compute_uv_and_xray_fraction() 
+        #self.uv_fraction, self.xray_fraction = self.compute_uv_and_xray_fraction() 
         try:
             assert(reprocessing in [False,True])#
         except:
