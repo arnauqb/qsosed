@@ -8,6 +8,7 @@ from scipy import integrate, optimize
 from astropy import units as u
 #from memoized_property import memoized_property as property
 from qsosed.xspec_routines import donthcomp
+from numba import njit
  
 def convert_units(old, new_unit):
     """
@@ -23,6 +24,53 @@ def convert_units(old, new_unit):
     """
     new = old.to( new_unit, equivalencies = u.spectral() )
     return new.value
+
+@njit(cache=True)
+def _nt_rel_factors(r, spin, isco):
+        """
+        Relatistic A,B,C factors of the Novikov-Thorne model.
+        
+        Parameters
+            Black Hole Mass in solar Masses
+        -----------
+        r : float
+            disk radial distance.
+        """
+
+        yms = np.sqrt(isco)
+        y1 = 2 * np.cos((np.arccos(spin) - np.pi) / 3)
+        y2 = 2 * np.cos((np.arccos(spin) + np.pi) / 3)
+        y3 = -2 * np.cos(np.arccos(spin) / 3)
+        y = np.sqrt(r)
+        C = 1 - 3 / r + 2 * spin / r**(1.5)
+        B = 3 * (y1 - spin)**2 * np.log(
+            (y - y1) / (yms - y1)) / (y * y1 * (y1 - y2) * (y1 - y3))
+        B += 3 * (y2 - spin)**2 * np.log(
+            (y - y2) / (yms - y2)) / (y * y2 * (y2 - y1) * (y2 - y3))
+        B += 3 * (y3 - spin)**2 * np.log(
+            (y - y3) / (yms - y3)) / (y * y3 * (y3 - y1) * (y3 - y2))
+        A = 1 - yms / y - 3 * spin * np.log(y / yms) / (2 * y)
+        factor = (A-B)/C
+        return factor
+
+@njit
+def blackbody_spectral_radiance(energy, T):
+        """
+        disk spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
+
+        Parameters
+        ----------
+        energy : float
+             Energy in erg.
+        r :  float
+             disk radius in Rg.
+        """
+        bb_constant = 2 / (const.h**3 * const.c ** 2)
+        #temperature = self.disk_temperature4(r) ** (1./4.)
+        planck_spectrum_exp = np.exp( energy / ( const.k_B *  T))
+        planck_spectrum = bb_constant * energy**3 * 1./ ( planck_spectrum_exp - 1)
+        return planck_spectrum
+
 
 class SED:
     """
@@ -77,6 +125,8 @@ class SED:
         self.corona_radius = self.corona_find_radius
         self.corona_height = min(100., self.corona_radius)
         self.warm_radius = 2 * self.corona_radius#0.87 * 2 * self.corona_radius
+        self.uv_fraction_radius_range = np.linspace(self.warm_radius, self.gravity_radius, number_bins_fractions)
+        self.disc_alpha = 0.1
         
         # set reprocessing to false to compute corona luminosity
         self.reprocessing = False
@@ -88,13 +138,12 @@ class SED:
             #print(self.corona_luminosity, self.disk_luminosity, self.corona_seed_luminosity)
             #self.corona_luminosity = self.corona_compute_luminosity
 
-        #self.uv_fraction, self.xray_fraction = self.compute_uv_and_xray_fraction() 
+        self.uv_fraction, self.xray_fraction = self.compute_uv_and_xray_fraction() 
         try:
             assert(reprocessing in [False,True])#
         except:
             print("Reprocessing has to be either False (no reprocessing) or True (include reprocessing).")
 
-        self.number_bins_fractions = number_bins_fractions
             
     @property
     def isco(self):
@@ -106,7 +155,8 @@ class SED:
         z2 = np.sqrt(3 * self.spin**2 + z1**2)
         rms = 3 + z2 - self.spin_sign * np.sqrt((3 - z1) * (3 + z1 + 2 * z2))
         return rms
-    
+
+        
     @property
     def efficiency(self):
         """ 
@@ -120,33 +170,6 @@ class SED:
         
         eta = 1 - np.sqrt( 1 - 2 / (3 * self.isco) )
         return eta
-
-    def _nt_rel_factors(self, r):
-        """
-        Relatistic A,B,C factors of the Novikov-Thorne model.
-        
-        Parameters
-            Black Hole Mass in solar Masses
-        -----------
-        r : float
-            disk radial distance.
-        """
-
-        yms = np.sqrt(self.isco)
-        y1 = 2 * np.cos((np.arccos(self.spin) - np.pi) / 3)
-        y2 = 2 * np.cos((np.arccos(self.spin) + np.pi) / 3)
-        y3 = -2 * np.cos(np.arccos(self.spin) / 3)
-        y = np.sqrt(r)
-        C = 1 - 3 / r + 2 * self.spin / r**(1.5)
-        B = 3 * (y1 - self.spin)**2 * np.log(
-            (y - y1) / (yms - y1)) / (y * y1 * (y1 - y2) * (y1 - y3))
-        B += 3 * (y2 - self.spin)**2 * np.log(
-            (y - y2) / (yms - y2)) / (y * y2 * (y2 - y1) * (y2 - y3))
-        B += 3 * (y3 - self.spin)**2 * np.log(
-            (y - y3) / (yms - y3)) / (y * y3 * (y3 - y1) * (y3 - y2))
-        A = 1 - yms / y - 3 * self.spin * np.log(y / yms) / (2 * y)
-        factor = (A-B)/C
-        return factor
 
     @property
     def eddington_luminosity(self):
@@ -199,25 +222,24 @@ class SED:
             disk radius in Rg. 
         """
         nt_constant = 3 * const.m_p * const.c**5 / ( 2 * const.sigma_sb * const.sigma_t * const.G * const.Ms)
-        rel_factor = self._nt_rel_factors(r)
+        rel_factor = _nt_rel_factors(r, self.spin, self.isco)
         aux = self.mdot / (self.M * self.efficiency * r**3) 
         t4 = nt_constant * rel_factor * aux
         return t4
 
-    def disk_nt_temperature4(self, r):
+    def disk_core_temperature(self,r):
         """
-        Computes Novikov-Thorne temperature in Kelvin (to the power of 4) of accretion disk annulus at radius r.
-        Parameters
-        ----------
-        r : float
-            disk radius in Rg. 
+        Returns temperature at the disc midplane, following "Accretion Power in Astrophysics, ed.3, p. 244".
         """
-        nt_constant = 3 * const.m_p * const.c**5 / ( 2 * const.sigma_sb * const.sigma_t * const.G * const.Ms)
-        rel_factor = self._nt_rel_factors(r)
-        aux = self.mdot / (self.M * self.efficiency * r**3) 
-        t4 = nt_constant * rel_factor * aux
-        return t4
-    
+        constant = 1.4e6
+        alpha = self.disc_alpha
+        mdot = (self.mass_accretion_rate / 1e26)
+        m = self.M / 1e8
+        f = ( 1 - np.sqrt(self.isco/ r ) )
+        r = (r * self.Rg / 1e14)
+        T = constant * alpha**(-1./5.) * mdot**(3/10) * m**(1/4) * r**(-3./4.) * f**(6./5.)
+        return T
+
     def disk_number_density(self, r):
         """
         Density at the surface of the accretion disc following the Shakura-Sunyaev model. Formula copied from N18 (scaling luminosity).
@@ -290,22 +312,10 @@ class SED:
         return teff4
 
     def disk_spectral_radiance(self, energy, r):
-        """
-        disk spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
-
-        Parameters
-        ----------
-        energy : float
-             Energy in erg.
-        r :  float
-             disk radius in Rg.
-        """
-        bb_constant = 2 / (const.h**3 * const.c ** 2)
-        temperature = self.disk_temperature4(r) ** (1./4.)
-        planck_spectrum_exp = np.exp( energy / ( const.k_B *  temperature ))
-        planck_spectrum = bb_constant * energy**3 * 1./ ( planck_spectrum_exp - 1)
-        return planck_spectrum
-    
+        T = self.disk_temperature4(r) ** (1./4.)
+        ps = blackbody_spectral_radiance(energy, T)
+        return ps
+        
     def disk_spectral_radiance_kev(self, energy, r):
         """
         disk spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
@@ -317,7 +327,7 @@ class SED:
              disk radius in Rg.
         """
         energy_erg = convert_units(energy * u.keV, u.erg)
-        planck_spec = self.disk_spectral_radiance(energy_erg, r)
+        planck_spec = disk_spectral_radiance(energy_erg, r)
         return planck_spec
         
 
@@ -428,8 +438,6 @@ class SED:
         disk_energy_flux = disk_lumin / ( 4 * np.pi * distance**2) * self.ENERGY_RANGE_KEV  # keV / cm^2 / s / keV
         return disk_energy_flux
     
-
-        
     """
     Corona section. Hot compton thin region, responsible for hard X-Ray emission.
     """
@@ -699,7 +707,7 @@ class SED:
 
         return [fraction_total, int_total_flux_uv, int_total_flux, component_fractions]
     
-    def compute_uv_fractions(self, distance, include_corona = False, return_all = True):
+    def compute_uv_fractions(self, distance=1e20, include_corona = False, return_all = True):
         """
         Computes the fraction of UV luminosity to the total UV luminosity at each radii. Return the fraction list, and the UV and total flux (optional).
 
@@ -708,19 +716,19 @@ class SED:
         return_flux: whether to retun the uv/total flux or not.
         include_corona: whether to include the radiation from the corona in the calculation or not.
         """
-        if(include_corona):
-            r_in = self.corona_radius
-        else:
-            r_in = self.warm_radius
+        #if(include_corona):
+        #    r_in = self.corona_radius
+        #else:
+        #    r_in = self.warm_radius
         #r_range = np.geomspace(r_in, self.gravity_radius, 1000)
         #d_log_r = np.log10(r_range[1]) - np.log10(r_range[0])
-        r_range = np.linspace(r_in, self.gravity_radius, self.number_bins_fractions)
-        dr = r_range[1] - r_range[0]
+        #dr = r_range[1] - r_range[0]
+        dr = self.uv_fraction_radius_range[1] - self.uv_fraction_radius_range[0]
         fraction_list = []
         total_uv_flux = 0
         total_flux = 0
         component_fractions_list = []
-        for r in r_range:
+        for r in self.uv_fraction_radius_range:
         #    dr = r * (10**d_log_r -1)
             uv_fraction, int_uv_flux, int_total_flux, component_fractions = self.compute_uv_fraction_radial(r, dr, distance)
             total_uv_flux += int_uv_flux
@@ -730,4 +738,4 @@ class SED:
         if(return_all):
             return [fraction_list, total_uv_flux, total_flux, np.array(component_fractions_list)]
         else:
-            return fraction_list
+            return np.array(fraction_list)

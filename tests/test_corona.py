@@ -39,7 +39,7 @@ def test_corona():
     t_at_rhot = sed_test.disk_nt_temperature4(sed_test.corona_radius)**(1./4.)
     testing.assert_approx_equal(t_at_rhot, XSPEC_T_AT_RHOT, significant = 2)
     testing.assert_approx_equal(sed_test.corona_dissipated_luminosity / sed_test.eddington_luminosity, XSPEC_L_DISS_HOT, significant = 2)
-    testing.assert_approx_equal(sed_test.corona_luminosity / sed_test.eddington_luminosity, XSPEC_LHOT, significant = 3)
+    testing.assert_approx_equal(sed_test.corona_luminosity / sed_test.eddington_luminosity, XSPEC_LHOT, significant = 2)
     testing.assert_approx_equal(sed_test.corona_photon_index, XSPEC_GAMMA_HOT, significant = 3)
 
 def test_corona_luminosity():

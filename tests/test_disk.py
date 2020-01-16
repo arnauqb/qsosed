@@ -19,7 +19,7 @@ def test_efficiency():
 
 def test_isco():
     testing.assert_approx_equal(sed_test.isco, 6.)
-    sed_test_2 = sed.SED(astar = 0.998)
+    sed_test_2 = sed.SED(spin = 0.998)
     testing.assert_approx_equal(sed_test_2.isco, 1.23, significant = 2)
 
 def test_gravity_radius():
@@ -30,7 +30,7 @@ def test_gravity_radius():
     testing.assert_approx_equal(t_at_gr, XSPEC_T_AT_GR)
 
 def test_nt_rel_factors():
-    testing.assert_equal(sed_test._nt_rel_factors(sed_test.isco),0)
+    testing.assert_equal(sed._nt_rel_factors(sed_test.isco, 0, sed_test.isco),0)
 
 def test_eddington_luminosity():
     testing.assert_approx_equal(sed_test.eddington_luminosity, 1.257e46, significant = 5)
