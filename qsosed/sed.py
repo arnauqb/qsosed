@@ -115,6 +115,7 @@ class SED:
 
         # useful quantities #
         self.Rg = const.G * M * const.Ms / const.c ** 2 # gravitational radius
+        self.number_bins_fractions = number_bins_fractions
         
         # model parameters
         self.hard_xray_fraction = hard_xray_fraction # fraction of energy in Eddington units in the corona.
@@ -125,7 +126,6 @@ class SED:
         self.corona_radius = self.corona_find_radius
         self.corona_height = min(100., self.corona_radius)
         self.warm_radius = 2 * self.corona_radius#0.87 * 2 * self.corona_radius
-        self.uv_fraction_radius_range = np.linspace(self.warm_radius, self.gravity_radius, number_bins_fractions)
         self.disc_alpha = 0.1
         
         # set reprocessing to false to compute corona luminosity
@@ -707,7 +707,7 @@ class SED:
 
         return [fraction_total, int_total_flux_uv, int_total_flux, component_fractions]
     
-    def compute_uv_fractions(self, distance=1e20, include_corona = False, return_all = True):
+    def compute_uv_fractions(self, distance=1e20, log_spaced=False, include_corona = False, return_all = True):
         """
         Computes the fraction of UV luminosity to the total UV luminosity at each radii. Return the fraction list, and the UV and total flux (optional).
 
@@ -723,13 +723,18 @@ class SED:
         #r_range = np.geomspace(r_in, self.gravity_radius, 1000)
         #d_log_r = np.log10(r_range[1]) - np.log10(r_range[0])
         #dr = r_range[1] - r_range[0]
-        dr = self.uv_fraction_radius_range[1] - self.uv_fraction_radius_range[0]
+        if log_spaced:
+            r_range = np.geomspace(self.warm_radius, 1600, self.number_bins_fractions + 1)
+        else:
+            r_range = np.linspace(self.warm_radius, 1600, self.number_bins_fractions + 1)
+
+        dr_range = np.diff(r_range) #self.uv_fraction_radius_range[1] - self.uv_fraction_radius_range[0]
         fraction_list = []
         total_uv_flux = 0
         total_flux = 0
         component_fractions_list = []
-        for r in self.uv_fraction_radius_range:
-        #    dr = r * (10**d_log_r -1)
+        for i, r in enumerate(r_range[:-1]):
+            dr = dr_range[i]
             uv_fraction, int_uv_flux, int_total_flux, component_fractions = self.compute_uv_fraction_radial(r, dr, distance)
             total_uv_flux += int_uv_flux
             total_flux += int_total_flux
@@ -738,4 +743,4 @@ class SED:
         if(return_all):
             return [fraction_list, total_uv_flux, total_flux, np.array(component_fractions_list)]
         else:
-            return np.array(fraction_list)
+            return r_range[:-1], np.array(fraction_list)
