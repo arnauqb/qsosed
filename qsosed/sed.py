@@ -724,16 +724,20 @@ class SED:
         #d_log_r = np.log10(r_range[1]) - np.log10(r_range[0])
         #dr = r_range[1] - r_range[0]
         if log_spaced:
-            r_range = np.geomspace(self.warm_radius, 1600, self.number_bins_fractions + 1)
+            r_range = np.geomspace(self.warm_radius, 1600, self.number_bins_fractions)
+            dr = np.log10(r_range[1]) - np.log10(r_range[0])
+            border_value = r_range[-1] + 10**(np.log10(r_range[-1]) + dr) 
         else:
-            r_range = np.linspace(self.warm_radius, 1600, self.number_bins_fractions + 1)
+            r_range = np.linspace(self.warm_radius, 1600, self.number_bins_fractions)
+            dr = r_range[1] - r_range[0]
+            border_value = r_range[-1] + dr
 
-        dr_range = np.diff(r_range) #self.uv_fraction_radius_range[1] - self.uv_fraction_radius_range[0]
+        dr_range = np.diff(r_range, append=border_value) #self.uv_fraction_radius_range[1] - self.uv_fraction_radius_range[0]
         fraction_list = []
         total_uv_flux = 0
         total_flux = 0
         component_fractions_list = []
-        for i, r in enumerate(r_range[:-1]):
+        for i, r in enumerate(r_range):
             dr = dr_range[i]
             uv_fraction, int_uv_flux, int_total_flux, component_fractions = self.compute_uv_fraction_radial(r, dr, distance)
             total_uv_flux += int_uv_flux
@@ -743,4 +747,4 @@ class SED:
         if(return_all):
             return [fraction_list, total_uv_flux, total_flux, np.array(component_fractions_list)]
         else:
-            return r_range[:-1], np.array(fraction_list)
+            return r_range, np.array(fraction_list)
