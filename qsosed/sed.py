@@ -707,7 +707,7 @@ class SED:
 
         return [fraction_total, int_total_flux_uv, int_total_flux, component_fractions]
     
-    def compute_uv_fractions(self, outer_radius = 1000, distance=1e20, log_spaced=False, include_corona = False, return_all = True):
+    def compute_uv_fractions(self, inner_radius = "warm_radius", outer_radius = 1000, distance=1e20, log_spaced=False, include_corona = False, return_all = True):
         """
         Computes the fraction of UV luminosity to the total UV luminosity at each radii. Return the fraction list, and the UV and total flux (optional).
 
@@ -723,12 +723,14 @@ class SED:
         #r_range = np.geomspace(r_in, self.gravity_radius, 1000)
         #d_log_r = np.log10(r_range[1]) - np.log10(r_range[0])
         #dr = r_range[1] - r_range[0]
+        if inner_radius == "warm_radius":
+            inner_radius = self.warm_radius
         if log_spaced:
-            r_range = np.geomspace(self.warm_radius, outer_radius, self.number_bins_fractions)
+            r_range = np.geomspace(inner_radius, outer_radius, self.number_bins_fractions)
             dr = np.log10(r_range[1]) - np.log10(r_range[0])
             border_value = r_range[-1] + 10**(np.log10(r_range[-1]) + dr) 
         else:
-            r_range = np.linspace(self.warm_radius, outer_radius, self.number_bins_fractions)
+            r_range = np.linspace(inner_radius, outer_radius, self.number_bins_fractions)
             dr = r_range[1] - r_range[0]
             border_value = r_range[-1] + dr
 
@@ -738,6 +740,10 @@ class SED:
         total_flux = 0
         component_fractions_list = []
         for i, r in enumerate(r_range):
+            if r == self.isco:
+                fraction_list.append(0)
+                component_fractions_list.append([0,0])
+                continue
             dr = dr_range[i]
             uv_fraction, int_uv_flux, int_total_flux, component_fractions = self.compute_uv_fraction_radial(r, dr, distance)
             total_uv_flux += int_uv_flux
