@@ -740,7 +740,7 @@ class SED:
         total_flux = 0
         component_fractions_list = []
         for i, r in enumerate(r_range):
-            if r == self.isco:
+            if r <= self.corona_radius:
                 fraction_list.append(0)
                 component_fractions_list.append([0,0])
                 continue
