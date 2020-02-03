@@ -8,7 +8,7 @@ from scipy import integrate, optimize
 from astropy import units as u
 #from memoized_property import memoized_property as property
 from qsosed.xspec_routines import donthcomp
-from numba import njit
+#from numba import njit
  
 def convert_units(old, new_unit):
     """
@@ -25,7 +25,7 @@ def convert_units(old, new_unit):
     new = old.to( new_unit, equivalencies = u.spectral() )
     return new.value
 
-@njit(cache=True)
+#@njit(cache=True)
 def _nt_rel_factors(r, spin, isco):
         """
         Relatistic A,B,C factors of the Novikov-Thorne model.
@@ -53,7 +53,7 @@ def _nt_rel_factors(r, spin, isco):
         factor = (A-B)/C
         return factor
 
-@njit
+#@njit
 def blackbody_spectral_radiance(energy, T):
         """
         disk spectral radiance in units of  1 / cm^2 / s / sr, assuming black-body radiation.
