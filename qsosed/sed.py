@@ -515,6 +515,8 @@ class SED:
         #reproc = self.reprocessing
         #self.reprocessing = False
         gamma_cor = 7./3. * ( self.corona_dissipated_luminosity / self.corona_seed_luminosity )**(-0.1)
+        print(self.corona_dissipated_luminosity)
+        print(self.corona_seed_luminosity)
         #self.reprocessing = reproc
         return gamma_cor
 
@@ -533,6 +535,9 @@ class SED:
         t_corona_kev = convert_units(t_corona * u.erg, u.keV)
         ywarm = (4./9. * self.warm_photon_index) ** (-4.5)
         params = [gamma, kt_e, t_corona_kev * np.exp(ywarm), 0, 0]
+        print(params)
+        print(self.ENERGY_RANGE_KEV[0])
+        print(self.ENERGY_RANGE_KEV[-1])
         #photon_number_flux = donthcomp(ear = self.ENERGY_RANGE_KEV, param = params) # units of Photons / cm^2 / s 
         photon_number_flux = self.compton_photon_flux(ear=self.ENERGY_RANGE_KEV, params=params)
         return photon_number_flux

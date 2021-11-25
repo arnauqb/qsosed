@@ -57,7 +57,6 @@ def test_corona():
         sed_test.corona_photon_index, XSPEC_GAMMA_HOT, significant=3
     )
 
-
 def test_corona_luminosity():
     dist = 1e23
     corona_lumin = sed_test.corona_luminosity

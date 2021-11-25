@@ -194,6 +194,16 @@ def _thermlc(tautom, theta, deltal, x, jmax, dphdot, bet, c2):
     The output parameters and functions are:
     dphesc(x), the escaping photon density
     """
+    print("THERM CLC")
+    print(tautom)
+    print(theta)
+    print(deltal)
+    print(x)
+    print(jmax)
+    print(dphdot)
+    print(bet)
+    print(c2)
+    print("---")
     dphesc = np.zeros(900)  # Initialise the output
     a = np.zeros(900); b   = np.zeros(900); c = np.zeros(900)
     d = np.zeros(900); alp = np.zeros(900); u = np.zeros(900)
