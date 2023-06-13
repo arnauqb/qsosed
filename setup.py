@@ -13,7 +13,7 @@ setup(
     description='A physical model for the broadband continuum of Quasars',
     long_description=readme,
     author='Arnau Quera-Bofarull',
-    author_email='arnau.quera-bofarull@durham.ac.uk',
+    author_email='arnauq@protonmail.com',
     url='https://github.com/arnauqb/qsosed',
     license=license,
     packages=find_packages(exclude=('test*', 'docs')),

@@ -1,6 +1,4 @@
-import pytest
 import qsosed.sed as sed
-from qsosed import constants
 from scipy import integrate
 import numpy as np
 from numpy import testing
